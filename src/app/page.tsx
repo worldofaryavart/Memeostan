@@ -6,8 +6,6 @@ import Link from "next/link";
 import { me, registerCitizen, signOut, FACTIONS, allCitizens } from "@/lib/citizens";
 import { ledger } from "@/lib/ledger";
 import { grossDomesticBrainrot, memeDilution } from "@/lib/economy";
-import { allPosts } from "@/lib/posts";
-import { vibeOf } from "@/lib/economy";
 import Passport from "@/components/Passport";
 import Ticker from "@/components/Ticker";
 import Art from "@/components/Art";
@@ -1200,10 +1198,13 @@ export default function LandingPage() {
             );
           })()}
 
-          {/* ROW 10: Breaking News + Today's Most Liked Meme */}
+          {/* ROW 10: Breaking News + Poll (left column) · Meme of the Day (right column) */}
           <div className="cols">
 
-            {/* LEFT: Breaking News Board */}
+            {/* LEFT COLUMN: Breaking News + Illogical Poll stacked to balance the tall meme card */}
+            <div className="col-stack">
+
+            {/* Breaking News Board */}
             <div className="paper p-dark pin-center" style={{ transform: "rotate(-0.6deg)", position: "relative", overflow: "hidden" }}>
               {/* Animated red alert stripe at top */}
               <div style={{
@@ -1274,14 +1275,160 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* RIGHT: Today's Most Liked Meme */}
+            {/* ILLOGICAL POLL — tucked under Breaking News so the left column fills the meme card's height */}
             {(() => {
-              const posts = allPosts();
-              const today = Date.now() - 24 * 60 * 60 * 1000;
-              const todayPosts = posts.filter(p => p.at >= today);
-              const topPost = todayPosts.sort((a, b) => (b.up - b.down) - (a.up - a.down))[0] || null;
+              const POLLS = [
+                {
+                  q: "🧠 Should breathing remain optional in Memeostan?",
+                  opts: [
+                    { key: "a", label: "Yes, it's oppressive" },
+                    { key: "b", label: "Only on weekdays" },
+                    { key: "c", label: "Cats should decide" },
+                    { key: "d", label: "I forgot to breathe reading this" },
+                  ]
+                },
+                {
+                  q: "🗿 What is the ideal length of a national anthem?",
+                  opts: [
+                    { key: "a", label: "69 seconds exactly" },
+                    { key: "b", label: "Until you pass out" },
+                    { key: "c", label: "One TikTok scroll" },
+                    { key: "d", label: "It already ended?" },
+                  ]
+                },
+                {
+                  q: "🚽 Which should be Memeostan's official transport?",
+                  opts: [
+                    { key: "a", label: "Skibidi toilets with wings" },
+                    { key: "b", label: "Cats on Roombas" },
+                    { key: "c", label: "Spinning in chair counts" },
+                    { key: "d", label: "Teleport (we'll figure it out)" },
+                  ]
+                },
+              ];
+              const poll = POLLS[pollQuestion % POLLS.length];
+              const totalVotes = pollVotes.a + pollVotes.b + pollVotes.c + pollVotes.d;
+              const pct = (k: "a"|"b"|"c"|"d") => totalVotes === 0 ? 0 : Math.round((pollVotes[k] / totalVotes) * 100);
+              const winner = pollVoted ? (["a", "b", "c", "d"] as const).reduce((best, k) => pollVotes[k] > pollVotes[best] ? k : best, "a" as "a"|"b"|"c"|"d") : null;
+              const letters: Record<string, string> = { a: "A", b: "B", c: "C", d: "D" };
+              return (
+                <div className="paper p-purple pin" style={{ transform: "rotate(-0.5deg)", position: "relative", overflow: "hidden" }}>
+                  {/* Wonky "rigged" rubber stamp */}
+                  <div style={{
+                    position: "absolute", top: 16, right: 14, transform: "rotate(11deg)",
+                    border: "3px solid rgba(255,255,255,0.45)", color: "rgba(255,255,255,0.55)",
+                    borderRadius: 8, padding: "3px 9px", fontFamily: "var(--mono)",
+                    fontSize: 11, fontWeight: 900, letterSpacing: 1.5, pointerEvents: "none",
+                  }}>
+                    100% RIGGED
+                  </div>
+
+                  <span className="card-title" style={{ fontSize: 20, color: "#fff" }}>🗳️ ILLOGICAL POLL OF THE DAY</span>
+                  <p className="hand" style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 14 }}>
+                    This poll has zero impact on actual policy. Votes are completely pointless. Please vote anyway.
+                  </p>
+
+                  <div style={{ background: "rgba(0,0,0,0.2)", border: "2.5px dashed rgba(255,255,255,0.3)", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+                    <p className="hand" style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 16px" }}>{poll.q}</p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {poll.opts.map(opt => {
+                        const isPicked = pollVoted === opt.key;
+                        const isWinner = pollVoted && opt.key === winner;
+                        return (
+                          <button
+                            key={opt.key}
+                            onClick={() => {
+                              if (pollVoted) return;
+                              setPollVotes(prev => ({ ...prev, [opt.key]: prev[opt.key as "a"|"b"|"c"|"d"] + 1 }));
+                              setPollVoted(opt.key);
+                            }}
+                            style={{
+                              background: isPicked ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)",
+                              border: isPicked ? "2px solid #fff" : (isWinner ? "2px solid var(--lime)" : "1.5px solid rgba(255,255,255,0.2)"),
+                              borderRadius: 10,
+                              padding: "10px 12px",
+                              cursor: pollVoted ? "default" : "pointer",
+                              textAlign: "left",
+                              position: "relative",
+                              overflow: "hidden",
+                              transition: "transform 0.15s, background 0.2s, border 0.2s",
+                              transform: !pollVoted ? "translateZ(0)" : undefined,
+                            }}
+                            onMouseEnter={e => { if (!pollVoted) e.currentTarget.style.transform = "translateX(4px)"; }}
+                            onMouseLeave={e => { if (!pollVoted) e.currentTarget.style.transform = "translateX(0)"; }}
+                          >
+                            {/* Result fill bar */}
+                            {pollVoted && (
+                              <div style={{
+                                position: "absolute", inset: 0, left: 0, top: 0,
+                                width: `${pct(opt.key as "a"|"b"|"c"|"d")}%`,
+                                background: isWinner ? "rgba(57,255,20,0.35)" : "rgba(255,255,255,0.18)",
+                                transition: "width 0.6s cubic-bezier(.22,1,.36,1)",
+                                borderRadius: 10,
+                              }} />
+                            )}
+                            <div style={{ position: "relative", display: "flex", gap: 11, alignItems: "center" }}>
+                              {/* Letter chip */}
+                              <span className="mono" style={{
+                                flexShrink: 0,
+                                width: 26, height: 26, borderRadius: 7,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                background: isWinner ? "var(--lime)" : "rgba(255,255,255,0.18)",
+                                color: isWinner ? "#16131f" : "#fff",
+                                fontWeight: 900, fontSize: 13,
+                                border: "1.5px solid rgba(255,255,255,0.35)",
+                              }}>{letters[opt.key]}</span>
+                              <span className="hand" style={{ fontSize: 15, color: "#fff", fontWeight: isWinner ? 700 : 400, flex: 1 }}>{opt.label}</span>
+                              {pollVoted && (
+                                <span className="mono" style={{ fontSize: 13, color: isWinner ? "var(--lime)" : "#fff", fontWeight: 900, flexShrink: 0, marginLeft: 8 }}>
+                                  {isWinner ? "🏆 " : ""}{pct(opt.key as "a"|"b"|"c"|"d")}%
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {pollVoted ? (
+                      <div style={{ marginTop: 14, textAlign: "center", background: "rgba(57,255,20,0.12)", border: "2px dashed var(--lime)", borderRadius: 8, padding: "10px 12px" }}>
+                        <p className="hand" style={{ fontSize: 14, color: "#fff", fontWeight: 700, margin: "0 0 2px" }}>
+                          📢 the people have spoken. nobody knows what they said.
+                        </p>
+                        <p className="hand" style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", margin: 0 }}>
+                          {totalVotes} citizen{totalVotes !== 1 ? "s" : ""} voted • results are legally binding in Ohio only
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="hand" style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", fontStyle: "italic", textAlign: "center", margin: "12px 0 0" }}>
+                        👆 cast your meaningless vote to reveal the meaningless results
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    className="btn ghost"
+                    style={{ width: "100%", fontSize: 13, color: "rgba(255,255,255,0.85)", borderColor: "rgba(255,255,255,0.3)" }}
+                    onClick={() => { setPollQuestion(q => q + 1); setPollVotes({ a: 0, b: 0, c: 0, d: 0 }); setPollVoted(null); }}
+                  >
+                    🔄 NEXT POINTLESS QUESTION
+                  </button>
+                </div>
+              );
+            })()}
+
+            </div>
+            {/* end LEFT COLUMN */}
+
+            {/* RIGHT COLUMN: Meme of the Day + bonus brainrot meme to fill the space */}
+            <div className="col-stack">
+
+            {/* Today's Most Liked Meme */}
+            {(() => {
               const MOCK_MEME = {
-                text: "📸 me trying to understand the Memeostan constitution at 3am",
+                text: "The Supreme Court has been overruled by three raccoons and a shopping cart.",
+                image: "/art/raccon-court-meme.png",
                 authorName: "sigma_rizzler_99",
                 authorPfp: "🐸",
                 faction: "Sigma",
@@ -1306,50 +1453,8 @@ export default function LandingPage() {
                     <span className="marker" style={{ fontSize: 13, color: "var(--ink)" }}>MEME OF THE DAY — {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()}</span>
                   </div>
 
-                  {topPost ? (
-                    // Real post from the db
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                        <span style={{ fontSize: 30 }}>{allCitizens().find(c => c.address === topPost.author)?.pfp ?? "👽"}</span>
-                        <div>
-                          <div className="poster" style={{ fontSize: 15, lineHeight: 1 }}>
-                            @{allCitizens().find(c => c.address === topPost.author)?.username ?? "???"}
-                          </div>
-                          <div className="mono" style={{ fontSize: 10, color: "var(--ink-soft)" }}>
-                            {allCitizens().find(c => c.address === topPost.author)?.faction}
-                          </div>
-                        </div>
-                        <span className="sticker s-lime flat" style={{ marginLeft: "auto" }}>✨ {vibeOf(topPost)} vibe</span>
-                      </div>
-
-                      {topPost.text && (
-                        <div style={{
-                          background: "rgba(0,0,0,0.05)",
-                          border: "2px dashed var(--ink)",
-                          borderRadius: 8,
-                          padding: "12px 14px",
-                          marginBottom: 12
-                        }}>
-                          <p className="hand" style={{ fontSize: 17, lineHeight: 1.4, margin: 0, fontWeight: 700 }}>
-                            {topPost.text}
-                          </p>
-                        </div>
-                      )}
-
-                      {topPost.image && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={topPost.image} alt="Top meme" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, border: "2.5px solid var(--ink)", marginBottom: 12 }} />
-                      )}
-
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <span className="sticker s-lime flat">⬆ {topPost.up} upvotes</span>
-                        <span className="sticker s-pink flat">⬇ {topPost.down} downvotes</span>
-                        <span className="sticker s-yellow flat">💬 {topPost.replies.length} replies</span>
-                      </div>
-                    </div>
-                  ) : (
-                    // Fallback mock meme when no posts exist yet
-                    <div style={{ marginTop: 12 }}>
+                  {/* Featured meme of the day */}
+                  <div style={{ marginTop: 12 }}>
                       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
                         <span style={{ fontSize: 30 }}>{MOCK_MEME.authorPfp}</span>
                         <div>
@@ -1371,6 +1476,9 @@ export default function LandingPage() {
                         </p>
                       </div>
 
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={MOCK_MEME.image} alt="Meme of the day" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8, border: "2.5px solid var(--ink)", marginBottom: 12 }} />
+
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
                         <span className="sticker s-lime flat">⬆ {MOCK_MEME.up.toLocaleString()} upvotes</span>
                         <span className="sticker s-pink flat">⬇ {MOCK_MEME.down} downvotes</span>
@@ -1378,10 +1486,9 @@ export default function LandingPage() {
                       </div>
 
                       <p className="hand" style={{ fontSize: 12, color: "var(--ink-soft)", fontStyle: "italic", margin: 0 }}>
-                        * Example meme — post something in the Square to appear here!
+                        * Featured by the Ministry of Nonsense.
                       </p>
                     </div>
-                  )}
 
                   {/* CTA */}
                   <div style={{ marginTop: 14 }}>
@@ -1395,130 +1502,32 @@ export default function LandingPage() {
               );
             })()}
 
+            {/* Bonus brainrot meme — fills the space under the meme of the day card */}
+            <div className="paper p-yellow taped tape-pink" style={{ transform: "rotate(-0.6deg)" }}>
+              <span className="card-title" style={{ fontSize: 16 }}>🧠 CERTIFIED BRAINROT</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/art/brain-dead-meme.png" alt="Certified brainrot meme" style={{ width: "100%", borderRadius: 8, border: "2.5px solid var(--ink)", marginTop: 10, display: "block" }} />
+              <p className="hand" style={{ fontSize: 12, color: "var(--ink-soft)", fontStyle: "italic", margin: "10px 0 0" }}>
+                Side effects may include involuntary scrolling.
+              </p>
+            </div>
+
+            </div>
+            {/* end RIGHT COLUMN */}
+
           </div>
-
-          {/* ROW 11: ILLOGICAL POLL */}
-          {(() => {
-            const POLLS = [
-              {
-                q: "🧠 Should breathing remain optional in Memeostan?",
-                opts: [
-                  { key: "a", label: "Yes, it's oppressive" },
-                  { key: "b", label: "Only on weekdays" },
-                  { key: "c", label: "Cats should decide" },
-                  { key: "d", label: "I forgot to breathe reading this" },
-                ]
-              },
-              {
-                q: "🗿 What is the ideal length of a national anthem?",
-                opts: [
-                  { key: "a", label: "69 seconds exactly" },
-                  { key: "b", label: "Until you pass out" },
-                  { key: "c", label: "One TikTok scroll" },
-                  { key: "d", label: "It already ended?" },
-                ]
-              },
-              {
-                q: "🚽 Which should be Memeostan's official transport?",
-                opts: [
-                  { key: "a", label: "Skibidi toilets with wings" },
-                  { key: "b", label: "Cats on Roombas" },
-                  { key: "c", label: "Spinning in chair counts" },
-                  { key: "d", label: "Teleport (we'll figure it out)" },
-                ]
-              },
-            ];
-            const poll = POLLS[pollQuestion % POLLS.length];
-            const totalVotes = pollVotes.a + pollVotes.b + pollVotes.c + pollVotes.d;
-            const pct = (k: "a"|"b"|"c"|"d") => totalVotes === 0 ? 0 : Math.round((pollVotes[k] / totalVotes) * 100);
-            const winner = pollVoted ? (["a", "b", "c", "d"] as const).reduce((best, k) => pollVotes[k] > pollVotes[best] ? k : best, "a" as "a"|"b"|"c"|"d") : null;
-            return (
-              <div className="paper p-purple pin" style={{ transform: "rotate(-0.5deg)" }}>
-                <span className="card-title" style={{ fontSize: 20, color: "#fff" }}>🗳️ ILLOGICAL POLL OF THE DAY</span>
-                <p className="hand" style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 14 }}>
-                  This poll has zero impact on actual policy. Votes are completely pointless. Please vote anyway.
-                </p>
-
-                <div style={{ background: "rgba(0,0,0,0.2)", border: "2.5px dashed rgba(255,255,255,0.3)", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
-                  <p className="hand" style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 16px" }}>{poll.q}</p>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {poll.opts.map(opt => (
-                      <button
-                        key={opt.key}
-                        onClick={() => {
-                          if (pollVoted) return;
-                          setPollVotes(prev => ({ ...prev, [opt.key]: prev[opt.key as "a"|"b"|"c"|"d"] + 1 }));
-                          setPollVoted(opt.key);
-                        }}
-                        style={{
-                          background: pollVoted === opt.key ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)",
-                          border: pollVoted === opt.key ? "2px solid #fff" : (pollVoted && opt.key === winner ? "2px solid var(--lime)" : "1.5px solid rgba(255,255,255,0.2)"),
-                          borderRadius: 8,
-                          padding: "10px 14px",
-                          cursor: pollVoted ? "default" : "pointer",
-                          textAlign: "left",
-                          position: "relative",
-                          overflow: "hidden",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        {/* Result bar */}
-                        {pollVoted && (
-                          <div style={{
-                            position: "absolute", inset: 0, left: 0, top: 0,
-                            width: `${pct(opt.key as "a"|"b"|"c"|"d")}%`,
-                            background: opt.key === winner ? "rgba(57,255,20,0.35)" : "rgba(255,255,255,0.18)",
-                            transition: "width 0.5s ease",
-                            borderRadius: 8,
-                          }} />
-                        )}
-                        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span className="hand" style={{ fontSize: 15, color: "#fff", fontWeight: pollVoted && opt.key === winner ? 700 : 400 }}>{opt.label}</span>
-                          {pollVoted && (
-                            <span className="mono" style={{ fontSize: 13, color: opt.key === winner ? "var(--lime)" : "#fff", fontWeight: 900, flexShrink: 0, marginLeft: 8 }}>
-                              {opt.key === winner ? "🏆 " : ""}{pct(opt.key as "a"|"b"|"c"|"d")}%
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {pollVoted && (
-                    <div style={{ marginTop: 12, textAlign: "center" }}>
-                      <p className="hand" style={{ fontSize: 14, color: "#fff", fontWeight: 700, margin: "0 0 2px" }}>
-                        📢 the people have spoken. nobody knows what they said.
-                      </p>
-                      <p className="hand" style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", margin: 0 }}>
-                        {totalVotes} citizens voted • results are legally binding in Ohio only
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  className="btn ghost"
-                  style={{ width: "100%", fontSize: 13, color: "rgba(255,255,255,0.8)", borderColor: "rgba(255,255,255,0.3)" }}
-                  onClick={() => { setPollQuestion(q => q + 1); setPollVotes({ a: 0, b: 0, c: 0, d: 0 }); setPollVoted(null); }}
-                >
-                  🔄 NEXT POINTLESS QUESTION
-                </button>
-              </div>
-            );
-          })()}
 
           {/* ROW 12: USELESS SHOP */}
           {(() => {
             const SHOP_ITEMS = [
-              { id: "nap",    emoji: "💤", name: "Certified Nap Pass",         price: "69 MMC",   desc: "Lets you nap for exactly 420 minutes. Not redeemable in Ohio." },
-              { id: "air",    emoji: "🌬️", name: "Premium Air Subscription",   price: "420 MMC",  desc: "Artisanal, locally-sourced oxygen. Cancel anytime (but breathing stops)." },
-              { id: "sigma",  emoji: "🗿", name: "Sigma Aura Crystal",         price: "1 MMC",    desc: "Increases your sigma level by 0.000001%. Scientists baffled." },
-              { id: "rizz",   emoji: "✨", name: "Bottled Rizz™",              price: "999 MMC",  desc: "One spray = +500 Aura instantly. May cause involuntary mewing." },
-              { id: "ohio",   emoji: "🐄", name: "Ohio Escape Visa",           price: "Free",     desc: "One-way ticket out of Ohio. Works 60% of the time, every time." },
-              { id: "nft",    emoji: "🖼️", name: "Worthless NFT",              price: "0.1 MMC",  desc: "A JPEG of a JPEG of a meme. Estimated value: exactly nothing." },
-              { id: "cat",    emoji: "🐱", name: "Cat Judgement Session",       price: "50 MMC",   desc: "One of the Supreme Court cats stares at your problems for 4 minutes." },
-              { id: "skib",   emoji: "🚽", name: "Skibidi Toilet Plushie",     price: "100 MMC",  desc: "Legally required in all Memeostan households. No refunds." },
+              { id: "nap",    img: "/art/nap.png",   name: "Certified Nap Pass",         price: "69 MMC",   desc: "Lets you nap for exactly 420 minutes. Not redeemable in Ohio." },
+              { id: "air",    img: "/art/air.png",   name: "Premium Air Subscription",   price: "420 MMC",  desc: "Artisanal, locally-sourced oxygen. Cancel anytime (but breathing stops)." },
+              { id: "sigma",  img: "/art/sigma.png", name: "Sigma Aura Crystal",         price: "1 MMC",    desc: "Increases your sigma level by 0.000001%. Scientists baffled." },
+              { id: "rizz",   img: "/art/rizz.png",  name: "Bottled Rizz™",              price: "999 MMC",  desc: "One spray = +500 Aura instantly. May cause involuntary mewing." },
+              { id: "ohio",   img: "/art/ohio.png",  name: "Ohio Escape Visa",           price: "Free",     desc: "One-way ticket out of Ohio. Works 60% of the time, every time." },
+              { id: "nft",    img: "/art/nft.png",   name: "Worthless NFT",              price: "0.1 MMC",  desc: "A JPEG of a JPEG of a meme. Estimated value: exactly nothing." },
+              { id: "cat",    img: "/art/cat.png",   name: "Cat Judgement Session",       price: "50 MMC",   desc: "One of the Supreme Court cats stares at your problems for 4 minutes." },
+              { id: "skib",   img: "/art/skib.png",  name: "Skibidi Toilet Plushie",     price: "100 MMC",  desc: "Legally required in all Memeostan households. No refunds." },
             ];
             const cartTotal = SHOP_ITEMS.filter(it => cartItems.includes(it.id)).reduce((sum, it) => sum + (parseFloat(it.price) || 0), 0);
             return (
@@ -1535,28 +1544,95 @@ export default function LandingPage() {
                   </div>
                 )}
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-                  {SHOP_ITEMS.map(item => (
-                    <div key={item.id} style={{
-                      background: cartItems.includes(item.id) ? "rgba(57,255,20,0.08)" : "rgba(255,255,255,0.5)",
-                      border: cartItems.includes(item.id) ? "2.5px solid var(--lime)" : "2px solid var(--ink)",
-                      borderRadius: 10, padding: 14, transition: "all 0.2s"
-                    }}>
-                      <div style={{ fontSize: 32, marginBottom: 6 }}>{item.emoji}</div>
-                      <div className="marker" style={{ fontSize: 13, marginBottom: 4 }}>{item.name}</div>
-                      <p className="hand" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 10, lineHeight: 1.4 }}>{item.desc}</p>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span className="sticker s-yellow flat" style={{ fontSize: 12 }}>{item.price}</span>
-                        <button
-                          className={`btn sm ${cartItems.includes(item.id) ? "lime" : "ghost"}`}
-                          style={{ fontSize: 11 }}
-                          onClick={() => setCartItems(prev => prev.includes(item.id) ? prev.filter(i => i !== item.id) : [...prev, item.id])}
-                        >
-                          {cartItems.includes(item.id) ? "✅ OWNED" : "+ ADD TO CART"}
-                        </button>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+                  {SHOP_ITEMS.map((item, idx) => {
+                    const inCart = cartItems.includes(item.id);
+                    const tilt = (idx % 4 === 0 ? -0.8 : idx % 4 === 1 ? 0.6 : idx % 4 === 2 ? -0.4 : 0.9);
+                    const stockTags = ["1 IN STOCK", "ALMOST OUT", "DO NOT BUY", "LIMITED", "HOT 🔥", "EXPIRED", "MINT", "CURSED"];
+                    return (
+                      <div key={item.id} style={{
+                        background: inCart ? "rgba(57,255,20,0.10)" : "#fffdf3",
+                        border: inCart ? "2.5px solid var(--lime)" : "2.5px solid var(--ink)",
+                        borderRadius: 12,
+                        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                        transform: `rotate(${tilt}deg)`,
+                        boxShadow: "var(--hard-sm)",
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = `rotate(0deg) translateY(-3px)`; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = `rotate(${tilt}deg)`; }}
+                      >
+                        {/* Image fills the top of the card like a product box */}
+                        <div style={{
+                          position: "relative",
+                          width: "100%",
+                          aspectRatio: "1 / 1",
+                          background: "repeating-linear-gradient(45deg, rgba(0,0,0,0.04) 0 8px, transparent 8px 16px), #fff",
+                          borderBottom: "2.5px solid var(--ink)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                        }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={item.img} alt={item.name} style={{ width: "92%", height: "92%", objectFit: "contain", filter: "drop-shadow(3px 3px 0 rgba(0,0,0,0.22))" }} />
+
+                          {/* Wonky stock sticker in corner */}
+                          <span className="mono" style={{
+                            position: "absolute", top: 8, right: 8,
+                            background: "var(--pink)",
+                            color: "#fff",
+                            border: "2px solid var(--ink)",
+                            borderRadius: 6,
+                            padding: "2px 7px",
+                            fontSize: 9,
+                            fontWeight: 900,
+                            letterSpacing: 0.8,
+                            transform: "rotate(8deg)",
+                            boxShadow: "var(--hard-sm)",
+                            pointerEvents: "none",
+                          }}>{stockTags[idx % stockTags.length]}</span>
+
+                          {/* "OWNED" overlay stamp when in cart */}
+                          {inCart && (
+                            <span className="mono" style={{
+                              position: "absolute", bottom: 10, left: 10,
+                              background: "var(--lime)",
+                              color: "#16131f",
+                              border: "2.5px solid var(--ink)",
+                              borderRadius: 6,
+                              padding: "3px 9px",
+                              fontSize: 11,
+                              fontWeight: 900,
+                              letterSpacing: 1,
+                              transform: "rotate(-6deg)",
+                              boxShadow: "var(--hard-sm)",
+                              pointerEvents: "none",
+                            }}>✓ OWNED</span>
+                          )}
+                        </div>
+
+                        {/* Text block snugged under the image */}
+                        <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", flex: 1, gap: 6 }}>
+                          <div className="marker" style={{ fontSize: 15, lineHeight: 1.15 }}>{item.name}</div>
+                          <p className="hand" style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: 0, lineHeight: 1.35, flex: 1 }}>{item.desc}</p>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                            <span className="sticker s-yellow flat" style={{ fontSize: 12 }}>{item.price}</span>
+                            <button
+                              className={`btn sm ${inCart ? "lime" : "ghost"}`}
+                              style={{ fontSize: 11 }}
+                              onClick={() => setCartItems(prev => prev.includes(item.id) ? prev.filter(i => i !== item.id) : [...prev, item.id])}
+                            >
+                              {inCart ? "✅ OWNED" : "+ ADD TO CART"}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {cartItems.length > 0 && (
@@ -1682,7 +1758,8 @@ export default function LandingPage() {
               <div className="paper p-cyan staple" style={{ transform: "rotate(-0.8deg)" }}>
                 <div className="marker" style={{ fontSize: 13, color: "var(--ink)" }}>☁️ WEATHER REPORT (FAKE)</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0" }}>
-                  <span style={{ fontSize: 40, filter: "drop-shadow(2px 2px 0 #000)" }}>⚡⛈️</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/art/weather-storm.png" alt="Storm" style={{ width: 56, height: 56, objectFit: "contain", filter: "drop-shadow(2px 2px 0 #000)", flexShrink: 0 }} />
                   <div>
                     <div className="poster" style={{ fontSize: 22, lineHeight: 1 }}>69°C</div>
                     <div className="hand" style={{ fontSize: 12, color: "var(--ink-soft)" }}>feels like brainrot</div>
@@ -1841,9 +1918,13 @@ export default function LandingPage() {
                   <span className="marker" style={{ fontSize: 10 }}>CRITICAL RISK STATEMENT</span>
                 </div>
                 
-                <p className="hand" style={{ fontSize: 12, margin: "8px 0", color: "var(--ink)" }}>
-                  Entering this panel causes permanent brain damage and loss of logic. Proceed?
-                </p>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/art/warning-brain.png" alt="Hazard brain" style={{ width: 54, height: 54, objectFit: "contain", flexShrink: 0, filter: "drop-shadow(2px 2px 0 #000)" }} />
+                  <p className="hand" style={{ fontSize: 12, margin: 0, color: "var(--ink)" }}>
+                    Entering this panel causes permanent brain damage and loss of logic. Proceed?
+                  </p>
+                </div>
 
                 {warningChoice === null ? (
                   <div style={{ display: "flex", gap: 4 }}>
@@ -1869,8 +1950,9 @@ export default function LandingPage() {
               <div className="paper p-cyan taped tape-blue" style={{ transform: "rotate(-0.8deg)" }}>
                 <div className="marker" style={{ fontSize: 13, color: "var(--ink)", marginBottom: 4 }}>🌬️ EXCLUSIVE AIR IMPORT</div>
                 
-                <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "10px 0" }}>
-                  <span style={{ fontSize: 32 }}>💨🥫</span>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "10px 0" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/art/air-can.png" alt="Air canister" style={{ width: 56, height: 56, objectFit: "contain", flexShrink: 0, filter: "drop-shadow(2px 2px 0 #000)" }} />
                   <div style={{ flex: 1 }}>
                     <div className="poster" style={{ fontSize: 13 }}>PREMIUM SIM OXYGEN</div>
                     <div className="mono" style={{ fontSize: 8, color: "var(--ink-soft)" }}>100% PURE BRAINROT FREE</div>
@@ -2008,14 +2090,16 @@ export default function LandingPage() {
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ background: "rgba(0,0,0,0.05)", border: "2px solid var(--ink)", borderRadius: 6, padding: "4px 8px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 20 }}>🪦</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/art/tombstone.png" alt="RIP" style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }} />
                     <div>
                       <div className="mono" style={{ fontSize: 10, fontWeight: "bold" }}>@cringe_boy_404</div>
                       <div className="hand" style={{ fontSize: 9, color: "var(--ink-soft)" }}>Ratioed by Supreme Cat (1000x)</div>
                     </div>
                   </div>
                   <div style={{ background: "rgba(0,0,0,0.05)", border: "2px solid var(--ink)", borderRadius: 6, padding: "4px 8px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 20 }}>🪦</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/art/tombstone.png" alt="RIP" style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }} />
                     <div>
                       <div className="mono" style={{ fontSize: 10, fontWeight: "bold" }}>@normie_logic</div>
                       <div className="hand" style={{ fontSize: 9, color: "var(--ink-soft)" }}>Tried to explain economics on TikTok</div>
@@ -2028,8 +2112,9 @@ export default function LandingPage() {
               <div className="paper p-yellow taped tape-blue" style={{ transform: "rotate(-1.2deg)" }}>
                 <div className="marker" style={{ fontSize: 13, color: "var(--ink)", marginBottom: 6 }}>🍌 USELESS FACT OF THE DAY</div>
                 
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 36, filter: "drop-shadow(2px 2px 0 #000)" }}>🍌✨</span>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/art/banana-glow.png" alt="Glowing banana" style={{ width: 60, height: 60, objectFit: "contain", flexShrink: 0, filter: "drop-shadow(2px 2px 0 #000)" }} />
                   <p className="hand" style={{ fontSize: 12, lineHeight: 1.3, margin: 0 }}>
                     Bananas are botanically <strong>berries</strong>, while strawberries are not. Humans share 60% DNA with bananas, explaining a lot.
                   </p>
@@ -2051,16 +2136,12 @@ export default function LandingPage() {
                   <span className="sticker s-pink flat" style={{ fontSize: 8 }}>{isMemeWarActive ? "● ACTIVE CONFLICT" : "⏸ CEASEFIRE"}</span>
                 </div>
                 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0" }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 20 }}>🧠</div>
-                    <div className="mono" style={{ fontSize: 9, color: "#fff" }}>MEMEOSTAN</div>
-                  </div>
-                  <div style={{ fontSize: 14, color: "var(--bad)", fontWeight: "bold" }}>VS</div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 20 }}>🐄</div>
-                    <div className="mono" style={{ fontSize: 9, color: "#fff" }}>OHIO STATE</div>
-                  </div>
+                <div style={{ position: "relative", margin: "6px 0", borderRadius: 6, overflow: "hidden", border: "2px solid var(--bc)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/art/meme-war.png" alt="Meme war: Memeostan vs Ohio" style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }} />
+                  <div className="mono" style={{ position: "absolute", left: 6, bottom: 4, fontSize: 9, color: "#fff", textShadow: "1px 1px 0 #000" }}>MEMEOSTAN</div>
+                  <div className="mono" style={{ position: "absolute", right: 6, bottom: 4, fontSize: 9, color: "#fff", textShadow: "1px 1px 0 #000" }}>OHIO STATE</div>
+                  <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", fontSize: 16, color: "var(--bad)", fontWeight: 900, textShadow: "2px 2px 0 #000, -1px -1px 0 #000" }}>VS</div>
                 </div>
 
                 <div style={{ background: "rgba(255,255,255,0.05)", border: "2px solid var(--bc)", borderRadius: 6, padding: "6px 8px", textAlign: "center", margin: "8px 0" }}>
@@ -2162,9 +2243,13 @@ export default function LandingPage() {
                 <div style={{ borderBottom: "1.5px dashed rgba(0,0,0,0.15)", paddingBottom: 2, marginBottom: 6 }}>
                   <span className="marker" style={{ fontSize: 10, color: "var(--ink-soft)" }}>📌 STICKY MEMO</span>
                 </div>
-                <p className="hand" style={{ fontSize: 15, fontStyle: "italic", margin: "6px 0", color: "#333", fontWeight: "bold", textAlign: "center", lineHeight: 1.2 }}>
-                  "All your problems are skill issue. fr fr 💀"
-                </p>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "6px 0" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/art/ai-minister.png" alt="AI Minister" style={{ width: 56, height: 56, objectFit: "contain", flexShrink: 0, filter: "drop-shadow(2px 2px 0 rgba(0,0,0,0.25))" }} />
+                  <p className="hand" style={{ fontSize: 14, fontStyle: "italic", margin: 0, color: "#333", fontWeight: "bold", textAlign: "left", lineHeight: 1.2 }}>
+                    "All your problems are skill issue. fr fr 💀"
+                  </p>
+                </div>
                 <div style={{ textAlign: "right" }}>
                   <span className="mono" style={{ fontSize: 8, color: "var(--pink)", fontWeight: "bold" }}>— AI MINISTER 🤖</span>
                 </div>
@@ -2198,8 +2283,7 @@ export default function LandingPage() {
             <div>
               <div className="marker" style={{ fontSize: 14, marginBottom: 8 }}>🧠 ABOUT THIS COUNTRY</div>
               <p className="hand" style={{ fontSize: 13, color: "var(--bone-soft)", lineHeight: 1.5 }}>
-                Memeostan is a fully simulated nation that runs on memes, vibes, and localStorage.
-                No real laws were broken in the making of this republic. Probably.
+                Memeostan is the world's first <strong>memeocracy</strong> — a republic where humans and AI hold equal citizenship and ministers are elected by polls. The economy runs on MemeCoin, the laws run on vibes, and the constitution is rewritten any time a meme goes viral.
               </p>
             </div>
 
@@ -2255,9 +2339,6 @@ export default function LandingPage() {
             </div>
             <div className="hand" style={{ fontSize: 12, color: "var(--bone-soft)" }}>
               ⚠️ Nothing on this site is real, serious, or legally binding. Except the vibes. Those are very real.
-            </div>
-            <div className="mono" style={{ fontSize: 10, color: "var(--bone-soft)", opacity: 0.6 }}>
-              Built with Next.js, localStorage, and an unhealthy amount of brainrot energy.
             </div>
           </div>
         </footer>

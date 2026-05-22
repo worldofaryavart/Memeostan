@@ -669,8 +669,12 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
   flex-shrink: 0;
   letter-spacing: 0.6px;
   border-right: var(--b);
+  position: relative;
+  z-index: 2;
 }
 .ticker .run {
+  position: relative;
+  z-index: 1;
   display: inline-block;
   padding-left: 100%;
   animation: run 60s linear infinite;
