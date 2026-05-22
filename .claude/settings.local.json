@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(git init *)",
+      "Bash(git symbolic-ref *)",
+      "Bash(git add *)",
+      "Bash(git -c user.name=Claude -c user.email=noreply@anthropic.com commit -q -m 'Phase-1 MVP baseline before overnight build *)",
+      "Bash(npx tsc *)",
+      "Bash(curl -s -o /dev/null -w \"page HTTP %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(git -c user.name=Claude -c user.email=noreply@anthropic.com commit -q -m 'A2: add My Citizen profile panel \\(post stats + personal tx history\\) *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}

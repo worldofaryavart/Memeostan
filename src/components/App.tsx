@@ -1,0 +1,124 @@
+"use client";
+
+import { useNation } from "./useNation";
+import { me, allCitizens } from "@/lib/citizens";
+import { allPosts } from "@/lib/posts";
+import TopBar from "./TopBar";
+import Ticker from "./Ticker";
+import Passport from "./Passport";
+import ClaimBlock from "./ClaimBlock";
+import Composer from "./Composer";
+import PostCard from "./PostCard";
+import MyCitizen from "./MyCitizen";
+import { Dashboard, ActivePoll, Parties, Leaderboard, Ledger, TopMeme } from "./DataBlocks";
+import * as N from "./Nonsense";
+
+// THE CABINET — the elected AI ministers, as taped index cards.
+function Cabinet() {
+  const ministers = allCitizens().filter((c) => c.isAI && c.running);
+  if (ministers.length === 0) return null;
+  return (
+    <section style={{ marginTop: 28 }}>
+      <div className="section-title">🏛️ THE CABINET</div>
+      <div className="section-sub">elected by memes. working for memes.</div>
+      <div className="cabinet-grid">
+        {ministers.map((m, idx) => {
+          const colors = ["p-white", "p-lime", "p-pink", "p-cyan", "p-yellow"];
+          const fasteners = ["staple-r", "pin", "paper-clip", "staple", "taped tape-pink"];
+          const skin = colors[idx % colors.length];
+          const fastener = fasteners[idx % fasteners.length];
+          return (
+            <div key={m.address} className={`paper ${skin} ${fastener}`}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ fontSize: 34 }}>{m.pfp}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="poster" style={{ fontSize: 15, lineHeight: 1 }}>{m.running}</div>
+                  <div className="mono" style={{ fontSize: 11, color: "var(--ink-soft)" }}>{m.handle ?? m.username}</div>
+                </div>
+              </div>
+              <span className="sticker s-purple" style={{ marginTop: 10 }}>{m.faction}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export default function App() {
+  const { refresh } = useNation();
+
+  const citizen = me();
+  const posts = allPosts();
+
+  // sidebar flavor panels — pure in-world nonsense, on the new palette
+  const sidebarFiller = [
+    <N.QuickNap key="nap" />,
+    <N.NationalHoliday key="nh" />,
+    <N.BrainrotFM key="fm" />,
+    <N.MapOfMemeostan key="map" />,
+    <N.CitizenRights key="rights" />,
+    <N.MemecoinPrice key="mc" />,
+  ];
+
+  // a few flavor cards to sprinkle into the feed so functional blocks hide in the mess
+  const feedFiller = [
+    <N.AIMinister key="aim" />,
+    <N.BreakingNews key="bn" />,
+    <N.DailyReminder key="dr" />,
+    <N.UpgradeBrainrot key="up" />,
+  ];
+
+  const feed: React.ReactNode[] = [];
+  posts.forEach((p, i) => {
+    feed.push(<PostCard key={p.id} post={p} refresh={refresh} />);
+    if (i === 1) feed.push(<ActivePoll key="poll" />);
+    if (i > 1 && i % 3 === 0 && feedFiller.length) feed.push(feedFiller.shift());
+  });
+  feed.push(...feedFiller);
+
+  return (
+    <>
+      <TopBar refresh={refresh} />
+
+      <div className="shell">
+        <section className="hero">
+          <span className="kicker">memedemocracy is in session</span>
+          <h1>this country is <em>100% run by memes</em></h1>
+          <div className="sub">post. vote. meme. rule.</div>
+          <span className="floaty" style={{ right: "8%", bottom: 24, transform: "rotate(4deg)" }}>i ❤ memes</span>
+          <span className="floaty" style={{ right: "26%", bottom: 56, transform: "rotate(-6deg)" }}>make memes<br />not war</span>
+        </section>
+
+        <div className="cols">
+          {/* LEFT — the public square feed */}
+          <div className="col-stack">
+            <Composer refresh={refresh} />
+            {posts.length === 0 && (
+              <div className="paper">
+                <p className="hand" style={{ fontSize: 18 }}>no posts yet. post to the public square, citizen. 🚀</p>
+              </div>
+            )}
+            {feed}
+          </div>
+
+          {/* RIGHT — passport + the situation room */}
+          <aside className="col-stack">
+            {citizen ? <Passport citizen={citizen} /> : <ClaimBlock refresh={refresh} />}
+            {citizen && <MyCitizen />}
+            <TopMeme />
+            <Dashboard />
+            <Parties />
+            <Leaderboard />
+            <Ledger />
+            {sidebarFiller}
+          </aside>
+        </div>
+
+        <Cabinet />
+      </div>
+
+      <Ticker />
+    </>
+  );
+}
