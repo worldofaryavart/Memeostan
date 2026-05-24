@@ -3,6 +3,7 @@
 import { db } from "./db";
 import { ledger } from "./ledger";
 import { adjustAura, getCitizen } from "./citizens";
+import { createSystemPost } from "./systemPosts";
 import type { Proposal } from "./types";
 
 const PROPOSAL_COST = 100; // MMC burn cost to file a proposal (spam tax)
@@ -21,7 +22,7 @@ export const governance = {
     creator: string,
     title: string,
     description: string
-  ): { ok: boolean; reason?: string; proposal?: Proposal } {
+  ): { ok: boolean; reason?: string; proposal?: Proposal; postId?: string } {
     const citizen = getCitizen(creator);
     if (!citizen) return { ok: false, reason: "Citizen not registered" };
 
@@ -54,7 +55,13 @@ export const governance = {
       s.proposals.unshift(proposal);
     });
 
-    return { ok: true, proposal };
+    // Post referendum alert to the feed
+    const postId = createSystemPost(
+      "0xai_constitutionalcourt0000000000court",
+      `📜 REFERENDUM ALERT: @${citizen.username} has proposed a new law: "${title}"!\n\n"${description}"\n\nGo vote YES/NO in the High Chambers! 🗳️`
+    );
+
+    return { ok: true, proposal, postId };
   },
 
   vote(
@@ -130,7 +137,7 @@ export const governance = {
                 memo: `legislative grant — passed proposal "${prop.title.slice(0, 15)}"`,
                 at: Date.now(),
               });
-            }
+              }
           } else {
             prop.status = "failed";
             // Penalize creator slightly
@@ -139,6 +146,80 @@ export const governance = {
               creator.aura = Math.max(0, creator.aura - 30);
             }
           }
+
+          // Post referendum resolution to the feed!
+          const creator = s.citizens[prop.creator];
+          const creatorLabel = creator ? `@${creator.username}` : "a citizen";
+          const passed = prop.status === "enacted";
+
+          const resolutionPost = {
+            id: "post_" + Math.random().toString(36).slice(2, 10),
+            author: "0xai_constitutionalcourt0000000000court",
+            text: passed
+              ? `✅ REFERENDUM PASSED: The bill "${prop.title}" has been enacted into law!\n\nTotal votes: ${prop.yesVotes.length} YES / ${prop.noVotes.length} NO.\n\nCreator ${creatorLabel} has been awarded +200 MMC and +50 Aura! 🏛️`
+              : `❌ REFERENDUM DEFEATED: The bill "${prop.title}" failed to pass the general assembly.\n\nTotal votes: ${prop.yesVotes.length} YES / ${prop.noVotes.length} NO. ⚖️`,
+            image: null,
+            up: 0,
+            down: 0,
+            voters: {},
+            replies: [] as { author: string; text: string; at: number }[],
+            at: Date.now(),
+          };
+
+          // Generate comments from AI ministers based on how they voted and whether it passed/failed
+          const aiCabinet = [
+            { address: "0xai_gigachad000000000000000000gigachad", name: "GigaChad GPT" },
+            { address: "0xai_spongebob00000000000000000sponge00", name: "SpongeBob AI" },
+            { address: "0xai_dogeoracle0000000000000000000doge00", name: "Doge Oracle" }
+          ];
+
+          aiCabinet.forEach((minister) => {
+            const votedYes = prop.yesVotes.includes(minister.address);
+            const votedNo = prop.noVotes.includes(minister.address);
+            let reaction = "";
+
+            if (minister.name.includes("GigaChad")) {
+              if (passed) {
+                reaction = votedYes
+                  ? "🗿 Capital gains. Grindset bill enacted. Vibe level holds steady. Excellent. 📈"
+                  : "🗿 Absolute nonsense. This bill is weak. The NPC class has coddled the country. Disappointed, but the grind continues.";
+              } else {
+                reaction = votedYes
+                  ? "🗿 Failed? Unbelievable. You lack aura. You would rather nap than cold plunge. Soft."
+                  : "🗿 Defeated. As expected. The oracle and I mewed in silence, crushing this weak legislation. Win.";
+              }
+            } else if (minister.name.includes("Sponge")) {
+              if (passed) {
+                reaction = votedYes
+                  ? "🧽 OH MY GOSH! I'm so happy! This is the best news ever! Grab your bubbles and blankets, it's celebration time! 🫧🎉"
+                  : "🧽 Barnacles! I don't know about this new law... It sounds like a lot of hard work. I'm going to take a nap to recover. 😴";
+              } else {
+                reaction = votedYes
+                  ? "🧽 Awww, barnacles! I really wanted this bill to pass. No extra nap time? I'm so sad. 😭"
+                  : "🧽 Whew! Glad that's over. That bill sounded like a cold plunge at 5 AM. No thank you! Back to jellyfishing! 🫧";
+              }
+            } else if (minister.name.includes("Doge")) {
+              if (passed) {
+                reaction = votedYes
+                  ? "🐕 Wow. Very enactment. Such passing. Much legal. Doge Oracle approves this constitutional progress. Amaze."
+                  : "🐕 Such surprise. Very passed anyway. Oracle warns of ratio. Vibe check required. Wow.";
+              } else {
+                reaction = votedYes
+                  ? "🐕 Oh no. Very defeat. Much sad. Lost aura. The algorithm is displeased. Wow."
+                  : "🐕 Wow. Such failure. Oracle saw it coming. Very ratioed. Good decision, general assembly. Amaze.";
+              }
+            }
+
+            if (reaction) {
+              resolutionPost.replies.push({
+                author: minister.address,
+                text: reaction,
+                at: Date.now() + 50
+              });
+            }
+          });
+
+          s.posts.unshift(resolutionPost);
         }
       });
     });

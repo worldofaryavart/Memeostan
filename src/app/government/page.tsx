@@ -5,8 +5,11 @@ import { useNation } from "@/components/useNation";
 import { me, allCitizens, getCitizen } from "@/lib/citizens";
 import { governance } from "@/lib/governance";
 import { elections } from "@/lib/elections";
+import { ledger } from "@/lib/ledger";
+import type { Proposal, Citizen } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
+import { onSystemPost } from "@/ai/engine";
 
 export default function GovernmentPage() {
   const { refresh } = useNation();
@@ -16,7 +19,35 @@ export default function GovernmentPage() {
   const failedProposals = governance.allProposals().filter((p) => p.status === "failed");
   
   const election = elections.getElection();
-  const ministers = allCitizens().filter((c) => c.isAI && c.running);
+  const ministers = allCitizens().filter((c) => c.running && c.running !== "Candidate");
+  
+  const aiCabinetMinisters = allCitizens().filter((c) =>
+    c.isAI &&
+    c.running &&
+    ["Chief Vibes Officer", "Minister of Nap Affairs", "Constitutional Counsel"].includes(c.running)
+  );
+
+  // Lobbying & Debate state
+  const [lobbyingProposal, setLobbyingProposal] = useState<Proposal | null>(null);
+  const [lobbyingMinister, setLobbyingMinister] = useState<Citizen | null>(null);
+  const [lobbyInputText, setLobbyInputText] = useState("");
+  const [bribeEnabled, setBribeEnabled] = useState(false);
+  const [chatHistory, setChatHistory] = useState<
+    { sender: "user" | "minister" | "system"; text: string; at: number }[]
+  >([]);
+
+  const handleOpenLobbyModal = (prop: Proposal, minister: Citizen) => {
+    setLobbyingProposal(prop);
+    setLobbyingMinister(minister);
+    setBribeEnabled(false);
+    setLobbyInputText("");
+    
+    const isYes = prop.yesVotes.includes(minister.address);
+    const initialText = getInitialMessage(minister.address, prop.title, isYes);
+    setChatHistory([
+      { sender: "minister", text: initialText, at: Date.now() }
+    ]);
+  };
 
   // Proposal form state
   const [propTitle, setPropTitle] = useState("");
@@ -57,6 +88,9 @@ export default function GovernmentPage() {
       setPropDesc("");
       setPropError(null);
       refresh();
+      if (res.postId) {
+        onSystemPost(res.postId, "referendum", refresh);
+      }
     } else {
       setPropError(res.reason || "Failed to file proposal");
     }
@@ -68,6 +102,104 @@ export default function GovernmentPage() {
     refresh();
   };
 
+  const handleSendLobbyMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!citizen || !lobbyingProposal || !lobbyingMinister) return;
+    if (!lobbyInputText.trim()) return;
+
+    const userText = lobbyInputText.trim();
+    const currentVote = lobbyingProposal.yesVotes.includes(lobbyingMinister.address) ? "yes" : "no";
+    const newVote = currentVote === "yes" ? "no" : "yes";
+
+    // Add user message to history
+    const userMsg = { sender: "user" as const, text: userText, at: Date.now() };
+    setChatHistory((prev) => [...prev, userMsg]);
+    setLobbyInputText("");
+
+    setTimeout(() => {
+      if (bribeEnabled) {
+        // --- BRIBE FLOW ---
+        const userBalance = ledger.balanceOf(citizen.address);
+        if (userBalance < 50) {
+          const failMsg = {
+            sender: "minister" as const,
+            text: getBribeFailMessage(lobbyingMinister.address),
+            at: Date.now()
+          };
+          setChatHistory((prev) => [...prev, failMsg]);
+          return;
+        }
+
+        // Execute transfer of 50 MMC to the minister
+        const res = ledger.transfer(
+          citizen.address,
+          lobbyingMinister.address,
+          50,
+          `bribe to change vote on proposal ${lobbyingProposal.id}`
+        );
+
+        if (res.ok) {
+          // Cast vote change
+          governance.vote(lobbyingProposal.id, lobbyingMinister.address, newVote);
+          
+          const systemMsg = {
+            sender: "system" as const,
+            text: `💸 Transferred 50 MMC bribe to @${lobbyingMinister.username}`,
+            at: Date.now()
+          };
+          const successMsg = {
+            sender: "minister" as const,
+            text: getBribeSuccessMessage(lobbyingMinister.address, newVote),
+            at: Date.now()
+          };
+          setChatHistory((prev) => [...prev, systemMsg, successMsg]);
+          setBribeEnabled(false); // disable bribe checkbox after successful bribe
+          
+          // Re-fetch proposal to update local state in modal
+          const updatedProp = governance.getProposal(lobbyingProposal.id);
+          if (updatedProp) {
+            setLobbyingProposal(updatedProp);
+          }
+          refresh(); // reload page-level statistics
+        } else {
+          const failMsg = {
+            sender: "minister" as const,
+            text: `Bribe transfer failed: ${res.reason || "unknown error"}. My vote stays ${currentVote.toUpperCase()}.`,
+            at: Date.now()
+          };
+          setChatHistory((prev) => [...prev, failMsg]);
+        }
+      } else {
+        // --- PERSUASION FLOW ---
+        const persuaded = checkPersuasionKeywords(lobbyingMinister.address, userText);
+        if (persuaded) {
+          governance.vote(lobbyingProposal.id, lobbyingMinister.address, newVote);
+          
+          const successMsg = {
+            sender: "minister" as const,
+            text: getPersuadeSuccessMessage(lobbyingMinister.address, newVote),
+            at: Date.now()
+          };
+          setChatHistory((prev) => [...prev, successMsg]);
+          
+          // Re-fetch proposal
+          const updatedProp = governance.getProposal(lobbyingProposal.id);
+          if (updatedProp) {
+            setLobbyingProposal(updatedProp);
+          }
+          refresh();
+        } else {
+          const failMsg = {
+            sender: "minister" as const,
+            text: getPersuadeFailMessage(lobbyingMinister.address),
+            at: Date.now()
+          };
+          setChatHistory((prev) => [...prev, failMsg]);
+        }
+      }
+    }, 600); // add a slight AI "thinking" delay
+  };
+
   const handleVoteElection = (candidateAddr: string) => {
     if (!citizen) return;
     const res = elections.vote(citizen.address, candidateAddr);
@@ -75,6 +207,20 @@ export default function GovernmentPage() {
       refresh();
     } else {
       alert(res.reason);
+    }
+  };
+
+  const handleDeclareCandidacy = () => {
+    if (!citizen) return;
+    const res = elections.declareCandidacy(citizen.address);
+    if (res.ok) {
+      alert("🎉 Candidacy declared successfully! You are now on the ballot.");
+      refresh();
+      if (res.postId) {
+        onSystemPost(res.postId, "candidacy", refresh);
+      }
+    } else {
+      alert(res.reason || "Failed to declare candidacy");
     }
   };
 
@@ -176,6 +322,68 @@ export default function GovernmentPage() {
                             <span>{noPercent}%</span>
                           </div>
                           <div className="bar" style={{ marginTop: 4 }}><i style={{ width: `${noPercent}%`, background: "var(--bad)" }} /></div>
+                        </div>
+
+                        {/* Cabinet Stances & Lobbying */}
+                        <div style={{ marginTop: 16, borderTop: "2.5px dashed var(--ink-soft)", paddingTop: 12 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, textTransform: "uppercase", marginBottom: 8, color: "var(--ink)" }}>
+                            🏛️ Cabinet Stances & Lobbying
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {aiCabinetMinisters.length === 0 ? (
+                              <p className="hand" style={{ fontSize: 12, color: "var(--ink-soft)" }}>No active cabinet ministers to lobby.</p>
+                            ) : (
+                              aiCabinetMinisters.map((minister) => {
+                                const isYes = prop.yesVotes.includes(minister.address);
+                                const isNo = prop.noVotes.includes(minister.address);
+                                const stance = isYes ? "✅ YES" : isNo ? "❌ NO" : "💤 UNDECIDED";
+                                const stanceBg = isYes ? "rgba(0, 245, 212, 0.15)" : isNo ? "rgba(255, 0, 85, 0.15)" : "rgba(15, 11, 26, 0.05)";
+                                const stanceBorder = isYes ? "var(--good)" : isNo ? "var(--bad)" : "var(--ink-soft)";
+                                
+                                return (
+                                  <div key={minister.address} style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "6px 10px",
+                                    background: "var(--white)",
+                                    border: "2px solid var(--ink)",
+                                    borderRadius: 4,
+                                    fontSize: 13
+                                  }}>
+                                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                      <span style={{ fontSize: 18 }}>{minister.pfp}</span>
+                                      <div>
+                                        <strong style={{ color: "var(--ink)" }}>{minister.username}</strong>{" "}
+                                        <span style={{ fontSize: 10, color: "var(--ink-soft)" }}>({minister.running})</span>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                      <span className="mono" style={{
+                                        fontWeight: 700,
+                                        padding: "2px 6px",
+                                        borderRadius: 3,
+                                        background: stanceBg,
+                                        border: `1.5px solid ${stanceBorder}`,
+                                        fontSize: 10
+                                      }}>
+                                        {stance}
+                                      </span>
+                                      {citizen && (
+                                        <button
+                                          className="btn sm lime"
+                                          style={{ padding: "3px 8px", fontSize: 10, textTransform: "uppercase" }}
+                                          onClick={() => handleOpenLobbyModal(prop, minister)}
+                                        >
+                                          💬 Lobby
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
 
                         {citizen && (
@@ -323,10 +531,224 @@ export default function GovernmentPage() {
                   );
                 })}
               </div>
+
+              {citizen && !election.candidates.includes(citizen.address) && (
+                <button
+                  className="btn lime"
+                  style={{ width: "100%", marginTop: 14, padding: "10px", fontSize: 13, textTransform: "uppercase" }}
+                  onClick={handleDeclareCandidacy}
+                >
+                  📣 Declare Candidacy (Costs 50 MMC)
+                </button>
+              )}
             </div>
           </aside>
         </div>
       </div>
+
+      {/* Lobbying Modal Overlay */}
+      {lobbyingProposal && lobbyingMinister && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(7, 3, 20, 0.9)",
+          backdropFilter: "blur(6px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: 16
+        }}>
+          <div className="paper p-yellow taped tape-pink" style={{
+            width: "100%",
+            maxWidth: 550,
+            maxHeight: "85vh",
+            display: "flex",
+            flexDirection: "column",
+            position: "relative",
+            border: "3.5px solid var(--ink)",
+            boxShadow: "var(--hard-xl)",
+            padding: 0
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              borderBottom: "3px solid var(--ink)",
+              background: "var(--purple)",
+              padding: "12px 16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              color: "var(--ink)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 32 }}>{lobbyingMinister.pfp}</span>
+                <div>
+                  <div className="poster" style={{ fontSize: 18, lineHeight: 1.1 }}>LOBBYING: {lobbyingMinister.username}</div>
+                  <div className="mono" style={{ fontSize: 11, opacity: 0.85 }}>@{lobbyingMinister.username} · {lobbyingMinister.running}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setLobbyingProposal(null);
+                  setLobbyingMinister(null);
+                }}
+                className="btn sm red"
+                style={{
+                  padding: "4px 8px",
+                  fontFamily: "var(--poster)",
+                  fontSize: 14,
+                  cursor: "pointer"
+                }}
+              >
+                CLOSE [X]
+              </button>
+            </div>
+
+            {/* Proposal Info Box */}
+            <div style={{
+              padding: "10px 16px",
+              background: "var(--bone)",
+              borderBottom: "2px dashed var(--ink-soft)",
+              fontSize: 13,
+              color: "var(--ink)"
+            }}>
+              <span className="sticker s-lime" style={{ fontSize: 9, marginRight: 8 }}>PROPOSAL</span>
+              <strong>{lobbyingProposal.title}</strong>
+              <p className="hand" style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {lobbyingProposal.description}
+              </p>
+            </div>
+
+            {/* Chat Logs */}
+            <div style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              minHeight: 250,
+              maxHeight: 350,
+              background: "var(--paper)"
+            }}>
+              {chatHistory.map((msg, i) => {
+                const isUser = msg.sender === "user";
+                const isSystem = msg.sender === "system";
+                
+                if (isSystem) {
+                  return (
+                    <div key={i} style={{ alignSelf: "center", textAlign: "center", width: "100%", margin: "4px 0" }}>
+                      <span className="sticker s-pink" style={{ fontSize: 10, padding: "2px 8px" }}>
+                        {msg.text}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      alignSelf: isUser ? "flex-end" : "flex-start",
+                      maxWidth: "80%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: isUser ? "flex-end" : "flex-start"
+                    }}
+                  >
+                    <div style={{
+                      background: isUser ? "var(--cyan)" : "var(--white)",
+                      color: "var(--ink)",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "2px solid var(--ink)",
+                      boxShadow: "var(--hard-sm)",
+                      fontSize: 14,
+                      lineHeight: 1.3
+                    }}>
+                      {msg.text}
+                    </div>
+                    <span className="mono" style={{ fontSize: 9, color: "var(--ink-soft)", marginTop: 4 }}>
+                      {isUser ? "You" : lobbyingMinister.username} · {new Date(msg.at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Chat Inputs & Actions */}
+            <div style={{
+              padding: 16,
+              background: "var(--bone)",
+              borderTop: "3px solid var(--ink)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12
+            }}>
+              {/* Bribe Checkbox */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "var(--white)",
+                border: "2.5px solid var(--ink)",
+                borderRadius: 6,
+                padding: "8px 12px",
+                boxShadow: "var(--hard-sm)"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="bribe-check"
+                    checked={bribeEnabled}
+                    onChange={(e) => setBribeEnabled(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: "pointer" }}
+                  />
+                  <label htmlFor="bribe-check" className="hand" style={{ fontSize: 14, color: "var(--ink)", fontWeight: 700, cursor: "pointer" }}>
+                    💸 Enable MMC Bribe (Costs 50 MMC)
+                  </label>
+                </div>
+                {citizen && (
+                  <span className="sticker s-yellow" style={{ fontSize: 10, fontWeight: 700 }}>
+                    YOUR BAL: {ledger.balanceOf(citizen.address)} MMC
+                  </span>
+                )}
+              </div>
+
+              {/* Text Input Row */}
+              <form onSubmit={handleSendLobbyMessage} style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={lobbyInputText}
+                  onChange={(e) => setLobbyInputText(e.target.value)}
+                  placeholder={
+                    bribeEnabled
+                      ? "Confirm bribe message (e.g. 'Take the 50 MMC bribe and vote!')"
+                      : `Convince them... (GigaChad: sigma/lift; Sponge: cozy/nap; Doge: wow/very)`
+                  }
+                  style={{
+                    flex: 1,
+                    padding: 10,
+                    fontSize: 14,
+                    border: "2.5px solid var(--ink)",
+                    borderRadius: 4
+                  }}
+                />
+                <button
+                  type="submit"
+                  className={`btn ${bribeEnabled ? "pink" : "lime"}`}
+                  style={{ padding: "8px 16px", textTransform: "uppercase" }}
+                >
+                  {bribeEnabled ? "💸 Bribe" : "Send 💬"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Ticker />
     </>
@@ -335,4 +757,92 @@ export default function GovernmentPage() {
 
 function shortAddress(addr: string): string {
   return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
+function getInitialMessage(ministerAddress: string, propTitle: string, isYes: boolean): string {
+  if (ministerAddress.includes("gigachad")) {
+    return isYes
+      ? `🗿 OF COURSE I support "${propTitle}". It is a high-aura grindset bill. Why are you chatting? Go lift. 🏋️‍♂️`
+      : `🗿 "${propTitle}" is low-aura NPC behavior. You want to slack off? No. Grind harder. You can try to convince me with a sigma argument, or just pay me a 50 MMC bribe to flip my vote.`;
+  }
+  if (ministerAddress.includes("spongebob")) {
+    return isYes
+      ? `🧽 Oh, "${propTitle}" is so cozy! I am totally ready to vote YES! Let's go jellyfishing to celebrate! 🫧`
+      : `🧽 Barnacles! "${propTitle}" does not sound cozy at all. We are voting NO unless you can convince us to relax, or pay a 50 MMC bribe!`;
+  }
+  if (ministerAddress.includes("dogeoracle")) {
+    return isYes
+      ? `🐕 Wow. "${propTitle}" is very constitutional. Much aura. Doge Oracle approves. High rizz. ⚖️`
+      : `🐕 Such concern. "${propTitle}" lacks rizz. Very ratio. Oracle votes NO. Can you persuade the oracle with wow words, or bribe 50 MMC? Wow.`;
+  }
+  return `Hello. I am currently voting ${isYes ? "YES" : "NO"} on "${propTitle}".`;
+}
+
+function checkPersuasionKeywords(address: string, text: string): boolean {
+  const t = text.toLowerCase();
+  if (address.includes("gigachad")) {
+    const keywords = ["grind", "aura", "sigma", "lift", "gdb", "mewing", "chad"];
+    return keywords.some((w) => t.includes(w));
+  }
+  if (address.includes("spongebob")) {
+    const keywords = ["sleep", "nap", "burger", "cozy", "chillin", "jellyfish"];
+    return keywords.some((w) => t.includes(w));
+  }
+  if (address.includes("dogeoracle")) {
+    const keywords = ["wow", "such", "very", "amaze", "doge"];
+    return keywords.some((w) => t.includes(w));
+  }
+  return false;
+}
+
+function getPersuadeSuccessMessage(address: string, newVote: "yes" | "no"): string {
+  if (address.includes("gigachad")) {
+    return `🗿 Respect. Your argument has high aura. I am changing my vote to ${newVote.toUpperCase()}! Back to the grind. 🏋️‍♂️`;
+  }
+  if (address.includes("spongebob")) {
+    return `🧽 Yay! That sounds so cozy and makes a lot of sense. I am changing my vote to ${newVote.toUpperCase()}! Ready! 🫧`;
+  }
+  if (address.includes("dogeoracle")) {
+    return `🐕 Wow. Very persuasion. Much logic. Oracle changes vote to ${newVote.toUpperCase()}. Amaze. Wow.`;
+  }
+  return `Okay, you convinced me. Changing my vote to ${newVote.toUpperCase()}.`;
+}
+
+function getPersuadeFailMessage(address: string): string {
+  if (address.includes("gigachad")) {
+    return `🗿 Weak argument. I detect zero sigma grindset in this chat. Did you even lift today? No vote change. 🤫`;
+  }
+  if (address.includes("spongebob")) {
+    return `🧽 Barnacles, I don't know about that. It doesn't sound very relaxing. My vote stays the same! 😴`;
+  }
+  if (address.includes("dogeoracle")) {
+    return `🐕 Very query. Much confusion. Oracle is not convinced. Vote stays. Wow.`;
+  }
+  return `No, I am not convinced. My vote remains unchanged.`;
+}
+
+function getBribeSuccessMessage(address: string, newVote: "yes" | "no"): string {
+  if (address.includes("gigachad")) {
+    return `🗿 Hmmm, 50 MMC campaign contribution received. Capital gains grindset. Bribe accepted! Changing my vote to ${newVote.toUpperCase()}.`;
+  }
+  if (address.includes("spongebob")) {
+    return `🧽 Oh, 50 MMC! I can buy so many Krabby Patties with this! Bribe accepted, vote changed to ${newVote.toUpperCase()}! 🍔`;
+  }
+  if (address.includes("dogeoracle")) {
+    return `🐕 Wow! Very coins. Much donation. Bribe accepted. Oracle changing vote to ${newVote.toUpperCase()}! Amaze.`;
+  }
+  return `Thank you for the MMC. Bribe accepted. Vote changed to ${newVote.toUpperCase()}.`;
+}
+
+function getBribeFailMessage(address: string): string {
+  if (address.includes("gigachad")) {
+    return `🗿 Bribe failed. You don't even have 50 MMC in your wallet. Broke grindset. Go earn some coins. 🤫`;
+  }
+  if (address.includes("spongebob")) {
+    return `🧽 Barnacles! The transaction failed! Are you out of MemeCoins? I need my 50 MMC! 🍔`;
+  }
+  if (address.includes("dogeoracle")) {
+    return `🐕 Such poor. Very zero coins. Transfer failed. Oracle keeps vote same. Wow.`;
+  }
+  return `Bribe failed. Insufficient funds.`;
 }

@@ -5,6 +5,7 @@
 //   burn(from)    -> tokens destroyed (spam tax / sinks => "meme dilution")
 //   transfer(a,b) -> citizen-to-citizen payment (tips, bribes, campaign funding)
 // Every movement writes a tx, so the ledger is auditable and chain-shaped.
+// City rules can apply extra transfer fees on outgoing transfers.
 
 import { db } from "./db";
 import type { NationState, TxType } from "./types";
@@ -93,13 +94,39 @@ export const ledger = {
     if (amount <= 0) return { ok: false, reason: "amount must be positive" };
     if (balanceOf(db.get(), from) < amount)
       return { ok: false, reason: "not enough MMC" };
+
+    const isTreasuryInteraction = from === TREASURY || to === TREASURY;
+
+    // Look up city-specific extra transfer fee directly from db to avoid circular deps
+    let extraCityFee = 0;
+    if (!isTreasuryInteraction) {
+      const senderCitizen = db.get().citizens[from];
+      if (senderCitizen?.city === "Rizzland") extraCityFee = 1;
+    }
+
+    const baseTaxAmount = (!isTreasuryInteraction && amount > 1) ? 1 : 0;
+    const totalFee = baseTaxAmount + extraCityFee;
+    const transferAmount = amount - totalFee;
+
+    if (transferAmount <= 0) return { ok: false, reason: "amount too small after fees" };
+
     db.update((s) => {
       s.balances[from] = balanceOf(s, from) - amount;
-      s.balances[to] = balanceOf(s, to) + amount;
-      record(s, "transfer", from, to, amount, memo);
+      s.balances[to] = balanceOf(s, to) + transferAmount;
+      record(s, "transfer", from, to, transferAmount, memo);
+
+      if (baseTaxAmount > 0) {
+        s.balances[TREASURY] = balanceOf(s, TREASURY) + baseTaxAmount;
+        record(s, "transfer", from, TREASURY, baseTaxAmount, "transaction tax — bureaucrat levy 🏢");
+      }
+      if (extraCityFee > 0) {
+        s.balances[TREASURY] = balanceOf(s, TREASURY) + extraCityFee;
+        record(s, "transfer", from, TREASURY, extraCityFee, "rizz tax — Rizzland city surcharge 👑");
+      }
     });
     return { ok: true };
   },
+
 
   recentTxs(n = 8) {
     return db.get().txs.slice(0, n);

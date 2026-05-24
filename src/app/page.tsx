@@ -87,6 +87,14 @@ const PARTIES_DATA = {
   }
 };
 
+const FACTION_DETAILS: Record<string, { color: string; emoji: string; desc: string; glowColor: string }> = {
+  "Sigma": { color: "var(--lime)", emoji: "🗿", desc: "Always mewing. Absolute peak grindset.", glowColor: "rgba(57, 255, 20, 0.25)" },
+  "NPC": { color: "var(--purple)", emoji: "🫠", desc: "Just scrollin'. Living the default script.", glowColor: "rgba(176, 92, 255, 0.25)" },
+  "Rizzler": { color: "var(--pink)", emoji: "👑", desc: "Maximum charisma. Unspeakable aura.", glowColor: "rgba(255, 0, 127, 0.25)" },
+  "Brainrot Veteran": { color: "var(--cyan)", emoji: "👽", desc: "Vertical videos are my life support.", glowColor: "rgba(0, 240, 255, 0.25)" },
+  "Meme Lord": { color: "var(--yellow)", emoji: "🐸", desc: "Posts bangers. Governs with laughter.", glowColor: "rgba(255, 238, 0, 0.25)" },
+};
+
 export default function LandingPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -159,6 +167,11 @@ export default function LandingPage() {
   const [username, setUsername] = useState("");
   const [faction, setFaction] = useState("Sigma");
   const [selectedPfp, setSelectedPfp] = useState("🫠");
+  const [city, setCity] = useState("Brainrot City");
+  const [party, setParty] = useState("Global Brainrot Party");
+
+  const activeColor = FACTION_DETAILS[faction]?.color || "var(--lime)";
+  const activeGlow = FACTION_DETAILS[faction]?.glowColor || "rgba(57, 255, 20, 0.25)";
 
   useEffect(() => {
     setMounted(true);
@@ -314,8 +327,8 @@ export default function LandingPage() {
   const gdb = grossDomesticBrainrot();
   const inflation = memeDilution();
 
-  // Active cabinet AI ministers
-  const ministers = allCitizens().filter((c) => c.isAI && c.running);
+  // Active cabinet ministers (AI or human)
+  const ministers = allCitizens().filter((c) => c.running && c.running !== "Candidate");
 
   const totalPartyVotes = partyVotes.memeLord + partyVotes.sigmaBoi + partyVotes.npc404;
   const pctMemeLord = Math.round((partyVotes.memeLord / totalPartyVotes) * 100);
@@ -330,6 +343,8 @@ export default function LandingPage() {
       username: username.trim(),
       faction: faction,
       pfp: selectedPfp,
+      city: city,
+      party: party,
     });
 
     if (typeof window !== "undefined") {
@@ -382,6 +397,8 @@ export default function LandingPage() {
     aura: 1000,
     isAI: false,
     joinedAt: Date.now(),
+    city: city,
+    party: party,
   };
 
   return (
@@ -2348,99 +2365,315 @@ export default function LandingPage() {
       {showRegisterModal && (
         <div className="modal-overlay" onClick={() => setShowRegisterModal(false)}>
           <div
-            className="modal-content paper p-white binder-clip"
-            style={{ maxWidth: 500, width: "100%", position: "relative" }}
+            className="modal-content paper p-orange pin-center"
+            style={{
+              maxWidth: 820,
+              width: "100%",
+              position: "relative",
+              background: "var(--orange)",
+              color: "#200f00",
+              border: "3.5px solid var(--bc)",
+              boxShadow: `0 0 30px ${activeGlow}, var(--hard-xl)`,
+              padding: "24px 30px",
+              overflow: "hidden"
+            }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Rubber Stamp overlay decoration */}
+            <img 
+              src="/art/vote-meme-stamp.png" 
+              alt="" 
+              aria-hidden 
+              style={{ 
+                position: "absolute", 
+                bottom: -20, 
+                left: -20, 
+                width: 120, 
+                transform: "rotate(-15deg)", 
+                opacity: 0.22, 
+                pointerEvents: "none" 
+              }} 
+            />
+
+            {/* Pushpin sticker decoration */}
+            <div className="pin-center" style={{ pointerEvents: "none" }} />
+
             {/* Close Button */}
             <button
+              type="button"
               className="btn red sm"
-              style={{ position: "absolute", top: -14, right: 10, zIndex: 20 }}
+              style={{
+                position: "absolute",
+                top: 14,
+                right: 14,
+                zIndex: 30,
+                transform: "rotate(3deg)",
+                boxShadow: "var(--hard-sm)"
+              }}
               onClick={() => setShowRegisterModal(false)}
             >
               ❌ CLOSE
             </button>
 
-            <span className="card-title">🛂 PASSPORT APPLICATION OFFICE</span>
-            <p className="hand" style={{ fontSize: 15, color: "var(--ink-soft)", marginBottom: 16 }}>
-              Apply for citizenship to receive your wallet address, obtain a <strong style={{ color: "var(--good)" }}>250 MMC welcome grant</strong>, and vote in active referendums.
-            </p>
-
-            <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Alias */}
-              <div>
-                <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6 }}>
-                  1. CHOOSE YOUR ALIAS / HANDLE
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. sigma_rizzler_99"
-                  maxLength={18}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
+            {/* Header */}
+            <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16 }}>
+              <div style={{
+                width: 58,
+                height: 58,
+                background: "rgba(255, 255, 255, 0.4)",
+                border: "2.5px solid var(--bc)",
+                borderRadius: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "var(--hard-sm)"
+              }}>
+                <img src="/art/mascot-brain.png" alt="Mascot" style={{ width: "90%", height: "90%", objectFit: "contain", transform: "rotate(-4deg)" }} />
               </div>
-
-              {/* Faction */}
-              <div>
-                <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6 }}>
-                  2. SELECT A FACTION / PARTY
-                </label>
-                <select value={faction} onChange={(e) => setFaction(e.target.value)}>
-                  {FACTIONS.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+              <div style={{ flex: 1 }}>
+                <h2 className="marker" style={{ fontSize: 24, lineHeight: 1.1, margin: 0, textTransform: "uppercase", color: "var(--ink)" }}>
+                  🛂 Border Control &amp; Passport Office
+                </h2>
+                <p className="hand" style={{ fontSize: 14, color: "rgba(32, 15, 0, 0.8)", margin: "4px 0 0 0" }}>
+                  Register to establish your wallet identity, get a <strong style={{ color: "#fff", background: "var(--ink)", padding: "0 4px", borderRadius: 4 }}>250 MMC welcome grant</strong>, and vote on laws!
+                </p>
               </div>
+            </div>
 
-              {/* PFP Emoji selector */}
-              <div>
-                <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6 }}>
-                  3. ASSIGN PFP STAMP
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 6 }}>
-                  {EMOJI_POOL.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      className="btn sm"
-                      onClick={() => setSelectedPfp(emoji)}
+            <hr className="rule" style={{ borderColor: "var(--bc)", opacity: 0.3, margin: "0 0 16px 0" }} />
+
+            <form
+              onSubmit={handleRegister}
+              className="modal-form"
+              style={{
+                display: "flex",
+                gap: 24,
+                marginTop: 12,
+              }}
+            >
+              <style>{`
+                .modal-form {
+                  flex-direction: row;
+                }
+                @media (max-width: 768px) {
+                  .modal-form {
+                    flex-direction: column !important;
+                  }
+                }
+              `}</style>
+
+              {/* Left Column: Form Fields */}
+              <div style={{ flex: 1.25, display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+                {/* Step 1: Alias */}
+                <div>
+                  <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6, color: "var(--ink)" }}>
+                    1. CHOOSE YOUR ALIAS
+                  </label>
+                  <div style={{ display: "flex", alignItems: "stretch", border: "3px solid var(--bc)", borderRadius: "8px", overflow: "hidden", boxShadow: "var(--hard-sm)" }}>
+                    <span
+                      className="poster"
                       style={{
-                        padding: 0,
-                        height: 34,
+                        background: activeColor,
+                        color: faction === "Sigma" || faction === "Meme Lord" ? "#070a04" : "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "0 14px",
                         fontSize: 18,
-                        background: selectedPfp === emoji ? "var(--lime)" : "var(--paper-2)",
-                        borderColor: selectedPfp === emoji ? "var(--bc)" : "rgba(0,0,0,0.15)",
-                        boxShadow: selectedPfp === emoji ? "var(--hard-sm)" : "none",
-                        transform: selectedPfp === emoji ? "scale(1.1)" : "none"
+                        borderRight: "3px solid var(--bc)",
+                        userSelect: "none"
                       }}
                     >
-                      {emoji}
-                    </button>
-                  ))}
+                      @
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="username"
+                      maxLength={18}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      style={{
+                        flex: 1,
+                        border: "none",
+                        borderRadius: 0,
+                        background: "var(--paper)",
+                        color: "var(--ink)",
+                        fontSize: 15,
+                        padding: "10px 12px",
+                        fontWeight: 700,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Step 2: Faction Selector */}
+                <div>
+                  <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6, color: "var(--ink)" }}>
+                    2. SELECT A FACTION
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))", gap: 8 }}>
+                    {Object.entries(FACTION_DETAILS).map(([name, detail]) => {
+                      const isActive = faction === name;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setFaction(name)}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            padding: "8px 4px",
+                            background: isActive ? "var(--paper)" : "rgba(255, 255, 255, 0.35)",
+                            border: isActive ? `3px solid var(--bc)` : "2.5px solid rgba(0,0,0,0.4)",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            transform: isActive ? "scale(1.05) rotate(-1.5deg)" : "none",
+                            boxShadow: isActive ? `0 0 10px ${detail.glowColor}, var(--hard-sm)` : "none",
+                            transition: "all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                          }}
+                        >
+                          <span style={{ fontSize: 24, marginBottom: 2 }}>{detail.emoji}</span>
+                          <span className="mono" style={{ fontSize: 9, fontWeight: "bold", textAlign: "center", color: "var(--ink)", whiteSpace: "nowrap" }}>
+                            {name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="hand" style={{ fontSize: 14, color: "var(--ink)", margin: "8px 0 0 0", textAlign: "center", fontWeight: "bold", minHeight: "20px" }}>
+                    &ldquo;{FACTION_DETAILS[faction]?.desc}&rdquo;
+                  </p>
+                </div>
+
+                {/* Step 3: Avatar Stamp */}
+                <div>
+                  <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6, color: "var(--ink)" }}>
+                    3. ASSIGN PASSPORT STAMP
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 6 }}>
+                    {EMOJI_POOL.map((emoji) => {
+                      const isActive = selectedPfp === emoji;
+                      return (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => setSelectedPfp(emoji)}
+                          style={{
+                            padding: 0,
+                            height: 34,
+                            fontSize: 18,
+                            cursor: "pointer",
+                            background: isActive ? "var(--paper)" : "rgba(255, 255, 255, 0.35)",
+                            border: isActive ? "2.5px solid var(--bc)" : "2px solid rgba(0,0,0,0.4)",
+                            borderRadius: "6px",
+                            boxShadow: isActive ? `0 0 8px ${activeGlow}` : "none",
+                            transform: isActive ? "scale(1.15) rotate(4deg)" : "none",
+                            transition: "transform 0.1s ease, background-color 0.1s ease, border-color 0.1s ease",
+                          }}
+                        >
+                          {emoji}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Steps 4 & 5: City and Party Selector */}
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6, color: "var(--ink)" }}>
+                      4. CHOOSE YOUR CITY
+                    </label>
+                    <select
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      style={{
+                        background: "var(--paper)",
+                        color: "var(--ink)",
+                        border: "2.5px solid var(--bc)",
+                        borderRadius: "6px",
+                        padding: "8px",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        width: "100%",
+                      }}
+                    >
+                      <option value="Brainrot City">🧠 Brainrot City</option>
+                      <option value="Neo Ohio">🗿 Neo Ohio</option>
+                      <option value="Rizzland">👑 Rizzland</option>
+                      <option value="Napistan">😴 Napistan</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="marker" style={{ fontSize: 14, display: "block", marginBottom: 6, color: "var(--ink)" }}>
+                      5. SELECT A PARTY
+                    </label>
+                    <select
+                      value={party}
+                      onChange={(e) => setParty(e.target.value)}
+                      style={{
+                        background: "var(--paper)",
+                        color: "var(--ink)",
+                        border: "2.5px solid var(--bc)",
+                        borderRadius: "6px",
+                        padding: "8px",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        width: "100%",
+                      }}
+                    >
+                      <option value="Global Brainrot Party">🟢 Global Brainrot Party</option>
+                      <option value="United Rizz Federation">💗 United Rizz Federation</option>
+                      <option value="Skibidi Doo Party">💎 Skibidi Doo Party</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              {/* Live Preview Passport */}
-              <div style={{ marginTop: 10, border: "2.5px dashed var(--ink-soft)", borderRadius: 6, padding: 12, background: "rgba(0,0,0,0.03)" }}>
-                <div className="mono" style={{ fontSize: 10, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 8, textAlign: "center" }}>
-                  Live Passport Preview
+              {/* Right Column: Preview & Submit */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14, minWidth: 0, justifyContent: "space-between" }}>
+                {/* Live Preview Viewfinder */}
+                <div
+                  style={{
+                    border: "3px dashed var(--bc)",
+                    borderRadius: 8,
+                    padding: "12px 14px",
+                    background: "rgba(0, 0, 0, 0.08)",
+                    position: "relative",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div className="mono" style={{ fontSize: 9, textTransform: "uppercase", color: "var(--ink)", display: "flex", alignItems: "center", gap: 6, fontWeight: "bold" }}>
+                      <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: activeColor, animation: "blink 1s infinite" }} />
+                      BIOMETRICS FEED: STANDBY
+                    </div>
+                    <span className="sticker flat s-purple" style={{ fontSize: 9, padding: "2px 6px" }}>GRANT ENABLED</span>
+                  </div>
+                  <div style={{ maxWidth: 280, margin: "0 auto" }}>
+                    <Passport citizen={previewCitizen} />
+                  </div>
                 </div>
-                <div style={{ maxWidth: 340, margin: "0 auto" }}>
-                  <Passport citizen={previewCitizen} />
-                </div>
-              </div>
 
-              {/* Submit button */}
-              <button
-                type="submit"
-                className="btn lime"
-                disabled={!username.trim()}
-                style={{ width: "100%", fontSize: 18, marginTop: 10 }}
-              >
-                CLAIM PASSPORT &amp; ENTER 🧠
-              </button>
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={!username.trim()}
+                  style={{
+                    width: "100%",
+                    fontSize: 18,
+                    padding: "14px",
+                    background: activeColor,
+                    color: faction === "Sigma" || faction === "Meme Lord" ? "#070a04" : "#fff",
+                    borderColor: "var(--bc)",
+                    boxShadow: `0 0 12px ${activeGlow}, var(--hard-sm)`,
+                    transition: "transform 0.1s ease, box-shadow 0.1s ease",
+                  }}
+                >
+                  ESTABLISH digital IDENTITY ⚡
+                </button>
+              </div>
             </form>
           </div>
         </div>

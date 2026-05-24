@@ -4,6 +4,7 @@ import { db } from "./db";
 import { ledger } from "./ledger";
 import { getCitizen } from "./citizens";
 import { vibeOf } from "./economy";
+import { createSystemPost } from "./systemPosts";
 import type { ActiveElection } from "./types";
 
 const ELECTION_DURATION = 5 * 60 * 1000; // 5 minutes for demo/interactive speed
@@ -41,9 +42,15 @@ export const elections = {
     return { ok: true };
   },
 
-  declareCandidacy(address: string): { ok: boolean; reason?: string } {
+  declareCandidacy(address: string): { ok: boolean; reason?: string; postId?: string } {
     const citizen = getCitizen(address);
     if (!citizen) return { ok: false, reason: "Citizen not registered" };
+
+    const balance = ledger.balanceOf(address);
+    const cost = 50;
+    if (balance < cost) {
+      return { ok: false, reason: `Not enough MMC! Candidacy registration costs ${cost} MMC, but you only have ${balance} MMC.` };
+    }
 
     let err: string | undefined;
     db.update((s) => {
@@ -57,7 +64,17 @@ export const elections = {
     });
 
     if (err) return { ok: false, reason: err };
-    return { ok: true };
+
+    // Charge candidacy fee
+    ledger.burn(address, cost, "candidacy registration fee 🗳️");
+
+    // Post campaign announcement to the feed
+    const postId = createSystemPost(
+      "0xai_electioncommission000000000000election",
+      `🗳️ CAMPAIGN UPDATE: @${citizen.username} has officially entered the race for the Cabinet! Support their campaign in the Election Booth! 🏛️`
+    );
+
+    return { ok: true, postId };
   },
 
   resolveElection(): void {
@@ -123,7 +140,57 @@ export const elections = {
               at: Date.now(),
             });
           }
+
+          // AI Acceptance Speech
+          if (citizen.isAI) {
+            let speechText = "";
+            if (citizen.username.includes("GigaChad")) {
+              speechText = `🗿 I am honored to be appointed as your Chief Vibes Officer! My first CVO directive is: 5 AM cold plunges are now mandatory, and mewing is constitutional. Aura audits will be conducted daily. Stay sigma, grind harder. 📈`;
+            } else if (citizen.username.includes("Sponge")) {
+              speechText = `🧽 Sworn in as your new Minister of Nap Affairs! I'M READY! Let's celebrate with a national 3-hour nap holiday and extra Krabby Patties! 💤🍔`;
+            } else if (citizen.username.includes("Doge")) {
+              speechText = `🐕 Sworn in as Constitutional Counsel. Much administration. Such guidance. Very laws. Wow. The oracle is watching. Amaze. ⚖️`;
+            }
+
+            if (speechText) {
+              state.posts.unshift({
+                id: "post_" + Math.random().toString(36).slice(2, 10),
+                author: citizen.address,
+                text: speechText,
+                image: null,
+                up: 0,
+                down: 0,
+                voters: {},
+                replies: [],
+                at: Date.now() + 50 - index * 10,
+              });
+            }
+          }
         }
+      });
+
+      // Post election resolution to the feed!
+      const summaryText = sorted
+        .map((candAddr, idx) => {
+          const citizen = state.citizens[candAddr];
+          if (!citizen) return null;
+          const title = offices[idx] || `Cabinet Minister (Rank ${idx + 1})`;
+          return `• @${citizen.username} (${citizen.faction}): Appointed ${title}`;
+        })
+        .filter(Boolean)
+        .slice(0, 3)
+        .join("\n");
+
+      state.posts.unshift({
+        id: "post_" + Math.random().toString(36).slice(2, 10),
+        author: "0xai_electioncommission000000000000election",
+        text: `🏛️ ELECTION RESULTS RESOLVED: A new government cabinet has been sworn in!\n\n${summaryText}\n\nCongratulate your new leaders! 🎉`,
+        image: null,
+        up: 0,
+        down: 0,
+        voters: {},
+        replies: [],
+        at: Date.now(),
       });
 
       // 2. Start next cycle

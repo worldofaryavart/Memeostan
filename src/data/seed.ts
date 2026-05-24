@@ -19,7 +19,62 @@ const GHOSTS = [
   { username: "RatioVictim", faction: "Rizzler", pfp: "💀" },
 ];
 
+const CYBER_POLICE_CITIZEN: Citizen = {
+  address: "0xai_cyberpolice000000000000000000police",
+  username: "cyber_police",
+  faction: "NPC",
+  pfp: "👮",
+  aura: 9999,
+  isAI: true,
+  joinedAt: Date.now(),
+  running: "AI Cyber Police Commissioner",
+  city: "Brainrot City",
+  party: "Global Brainrot Party",
+};
+
+const ELECTION_COMMISSION_CITIZEN: Citizen = {
+  address: "0xai_electioncommission000000000000election",
+  username: "election_commission",
+  faction: "NPC",
+  pfp: "🗳️",
+  aura: 9999,
+  isAI: true,
+  joinedAt: Date.now(),
+  running: "AI Federal Election Bureau",
+  city: "Brainrot City",
+  party: "Global Brainrot Party",
+};
+
+const CONSTITUTIONAL_COURT_CITIZEN: Citizen = {
+  address: "0xai_constitutionalcourt0000000000court",
+  username: "constitutional_court",
+  faction: "NPC",
+  pfp: "⚖️",
+  aura: 9999,
+  isAI: true,
+  joinedAt: Date.now(),
+  running: "AI High Judiciary Court",
+  city: "Brainrot City",
+  party: "Global Brainrot Party",
+};
+
 export function bootNation(): void {
+  // Ensure AI system citizens are seeded
+  db.update((s) => {
+    if (!s.citizens[CYBER_POLICE_CITIZEN.address]) {
+      s.citizens[CYBER_POLICE_CITIZEN.address] = CYBER_POLICE_CITIZEN;
+      s.balances[CYBER_POLICE_CITIZEN.address] = 50000;
+    }
+    if (!s.citizens[ELECTION_COMMISSION_CITIZEN.address]) {
+      s.citizens[ELECTION_COMMISSION_CITIZEN.address] = ELECTION_COMMISSION_CITIZEN;
+      s.balances[ELECTION_COMMISSION_CITIZEN.address] = 100000;
+    }
+    if (!s.citizens[CONSTITUTIONAL_COURT_CITIZEN.address]) {
+      s.citizens[CONSTITUTIONAL_COURT_CITIZEN.address] = CONSTITUTIONAL_COURT_CITIZEN;
+      s.balances[CONSTITUTIONAL_COURT_CITIZEN.address] = 100000;
+    }
+  });
+
   // Register AI candidates once (idempotent).
   CANDIDATES.forEach(ensureAICitizen);
 

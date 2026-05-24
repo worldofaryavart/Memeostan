@@ -30,6 +30,8 @@ function freshState(): NationState {
     },
     gdbHistory: [],
     purchasedCosmetics: {},
+    economicEvents: [],
+    taxHikeEndsAt: undefined,
   };
 }
 
@@ -42,6 +44,8 @@ function migrate(state: any): NationState {
   if (!state.proposals || !Array.isArray(state.proposals)) state.proposals = [];
   if (!state.gdbHistory || !Array.isArray(state.gdbHistory)) state.gdbHistory = [];
   if (!state.purchasedCosmetics || typeof state.purchasedCosmetics !== "object") state.purchasedCosmetics = {};
+  if (!state.economicEvents || !Array.isArray(state.economicEvents)) state.economicEvents = [];
+  if (state.taxHikeEndsAt === undefined) state.taxHikeEndsAt = 0;
 
   if (!state.version || state.version < 2) {
     state.version = 2;

@@ -10,12 +10,14 @@ export default function ClaimBlock({ refresh }: { refresh: () => void }) {
   const [username, setUsername] = useState("");
   const [faction, setFaction] = useState<string>(FACTIONS[0]);
   const [pfp, setPfp] = useState(PFPS[0]);
+  const [city, setCity] = useState("Brainrot City");
+  const [party, setParty] = useState("Global Brainrot Party");
   const [backupInput, setBackupInput] = useState("");
   const [showImport, setShowImport] = useState(false);
 
   const submit = () => {
     if (!username.trim()) return;
-    registerCitizen({ username: username.trim(), faction, pfp });
+    registerCitizen({ username: username.trim(), faction, pfp, city, party });
     refresh();
   };
 
@@ -49,9 +51,57 @@ export default function ClaimBlock({ refresh }: { refresh: () => void }) {
           />
 
           <label className="hand" style={{ fontSize: 16 }}>faction (pick your brainrot)</label>
-          <select value={faction} onChange={(e) => setFaction(e.target.value)} style={{ marginTop: 4, marginBottom: 10 }}>
+          <select value={faction} onChange={(e) => setFaction(e.target.value)} style={{ marginTop: 4, marginBottom: 10, width: "100%", padding: "4px 8px", fontSize: 13, border: "var(--b)", background: "var(--paper)", color: "var(--ink)", fontWeight: 700, borderRadius: "6px" }}>
             {FACTIONS.map((f) => (<option key={f} value={f}>{f}</option>))}
           </select>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label className="hand" style={{ fontSize: 15 }}>city</label>
+              <select
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginTop: 4,
+                  padding: "4px 8px",
+                  fontSize: 13,
+                  border: "var(--b)",
+                  background: "var(--paper)",
+                  color: "var(--ink)",
+                  fontWeight: 700,
+                  borderRadius: "6px"
+                }}
+              >
+                <option value="Brainrot City">🧠 Brainrot City</option>
+                <option value="Neo Ohio">🗿 Neo Ohio</option>
+                <option value="Rizzland">👑 Rizzland</option>
+                <option value="Napistan">😴 Napistan</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="hand" style={{ fontSize: 15 }}>party</label>
+              <select
+                value={party}
+                onChange={(e) => setParty(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginTop: 4,
+                  padding: "4px 8px",
+                  fontSize: 13,
+                  border: "var(--b)",
+                  background: "var(--paper)",
+                  color: "var(--ink)",
+                  fontWeight: 700,
+                  borderRadius: "6px"
+                }}
+              >
+                <option value="Global Brainrot Party">🟢 Global Brainrot Party</option>
+                <option value="United Rizz Federation">💗 United Rizz Federation</option>
+                <option value="Skibidi Doo Party">💎 Skibidi Doo Party</option>
+              </select>
+            </div>
+          </div>
 
           <label className="hand" style={{ fontSize: 16 }}>pfp</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, marginBottom: 14 }}>

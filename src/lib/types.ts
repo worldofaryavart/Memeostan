@@ -20,9 +20,22 @@ export interface Citizen {
   handle?: string;
   equippedBadge?: string; // equipped badge ID
   equippedBorder?: string; // equipped border class/style ID
+  city?: string;
+  party?: string;
 }
 
 export type VoteDir = "up" | "down";
+
+export type EconomicEventType = "boom" | "crash" | "inflation" | "tax_hike" | "airdrop";
+
+export interface EconomicEvent {
+  id: string;
+  type: EconomicEventType;
+  title: string;
+  description: string;
+  at: number;
+  resolved: boolean;
+}
 
 export interface Proposal {
   id: string;
@@ -87,4 +100,6 @@ export interface NationState {
   activeElection?: ActiveElection;
   gdbHistory?: { at: number; gdb: number }[];
   purchasedCosmetics?: Record<string, string[]>; // citizenAddress -> itemIds
+  economicEvents?: EconomicEvent[];
+  taxHikeEndsAt?: number; // timestamp until elevated transfer fee is active
 }

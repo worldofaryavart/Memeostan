@@ -35,11 +35,13 @@ interface NewCitizen {
   username: string;
   faction: string;
   pfp?: string;
+  city?: string;
+  party?: string;
 }
 
 // Register a brand-new human citizen: mints a wallet, files the passport,
 // grants the welcome MMC, and signs them in.
-export function registerCitizen({ username, faction, pfp }: NewCitizen): Citizen {
+export function registerCitizen({ username, faction, pfp, city, party }: NewCitizen): Citizen {
   const { address, secret } = createKeypair();
   const citizen: Citizen = {
     address,
@@ -50,6 +52,8 @@ export function registerCitizen({ username, faction, pfp }: NewCitizen): Citizen
     aura: 1000,
     isAI: false,
     joinedAt: Date.now(),
+    city: city || "Brainrot City",
+    party: party || "Global Brainrot Party",
   };
   db.update((s) => {
     s.citizens[address] = citizen;

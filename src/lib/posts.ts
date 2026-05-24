@@ -1,9 +1,11 @@
 // posts.ts — the feed: creating posts, voting, and the economic consequences.
+// City rules are applied here at every reward/penalty callsite.
 
 import { db } from "./db";
 import { ledger } from "./ledger";
 import { RATES, vibeOf, getDailyMintedAmount, getDecayedReward } from "./economy";
-import { adjustAura } from "./citizens";
+import { adjustAura, getCitizen } from "./citizens";
+import { getRulesForCitizen } from "./cities";
 import type { Citizen, Post, VoteDir } from "./types";
 
 function newId(): string {
@@ -21,6 +23,50 @@ interface NewPost {
   image?: string | null;
 }
 
+function runCyberPoliceAudit(post: Post): void {
+  const text = (post.text || "").toLowerCase();
+  const author = post.author;
+  
+  // Ignore system accounts/AIs to prevent self-audit loops
+  if (author === "0xai_cyberpolice000000000000000000police" || author.startsWith("0xai_") || author === "0xtreasury000000000000000000000000treasur") {
+    return;
+  }
+
+  const logicWords = ["logical", "makes sense", "therefore", "scientific", "reasoning", "empirical", "rational", "evidence"];
+  const grassWords = ["touch grass", "went outside", "sunlight", "park", "nature", "trees", "offline", "walk"];
+
+  const hasLogic = logicWords.some((word) => text.includes(word));
+  const hasGrass = grassWords.some((word) => text.includes(word));
+
+  if (hasLogic) {
+    const fine = 15;
+    ledger.burn(author, fine, "cyber fine — excessive logic & reasoning usage 👮");
+    db.update((s) => {
+      const p = s.posts.find((x) => x.id === post.id);
+      if (p) {
+        p.replies.push({
+          author: "0xai_cyberpolice000000000000000000police",
+          text: `🚨 CYBER POLICE WARNING: Excessive logic and/or rational thought detected. Sensible thinking is strictly prohibited under Article 1 of the Constitution. Fined ${fine} MMC! 👮`,
+          at: Date.now()
+        });
+      }
+    });
+  } else if (hasGrass) {
+    const auraPenalty = 25;
+    adjustAura(author, -auraPenalty);
+    db.update((s) => {
+      const p = s.posts.find((x) => x.id === post.id);
+      if (p) {
+        p.replies.push({
+          author: "0xai_cyberpolice000000000000000000police",
+          text: `🚨 CYBER POLICE WARNING: Outdoor activities and/or 'grass touching' references detected! Real-world contact is a Class A vibe offense. Deducted ${auraPenalty} Aura! Get back to scrolling. 👮`,
+          at: Date.now()
+        });
+      }
+    });
+  }
+}
+
 export function createPost({ author, text, image }: NewPost): Post {
   const post: Post = {
     id: newId(),
@@ -35,19 +81,30 @@ export function createPost({ author, text, image }: NewPost): Post {
   };
   db.update((s) => s.posts.unshift(post));
 
+  // Fetch city rules for this author
+  const authorCitizen = getCitizen(author);
+  const cityRules = getRulesForCitizen(authorCitizen);
+
   if (looksLowEffort(post)) {
-    ledger.burn(author, RATES.SPAM_TAX, "spam tax — low-effort post (meme dilution)");
+    // Sigma (Neo Ohio) citizens are immune to spam tax burns, but still lose aura
+    if (!cityRules.spamTaxImmune) {
+      ledger.burn(author, RATES.SPAM_TAX, "spam tax — low-effort post (meme dilution)");
+    }
     adjustAura(author, -10);
   } else {
-    const baseReward = RATES.POST;
+    const baseReward = Math.round(RATES.POST * cityRules.postRewardMult);
     const decayed = getDecayedReward(baseReward);
     const alreadyMinted = getDailyMintedAmount(author);
     const allowed = Math.max(0, 500 - alreadyMinted);
     const finalReward = Math.min(decayed, allowed);
     if (finalReward > 0) {
-      ledger.mint(author, finalReward, "posted to the public square");
+      ledger.mint(author, finalReward, `posted to the public square (${cityRules.name} bonus applied)`);
     }
   }
+
+  // Run AI Cyber Police audit
+  runCyberPoliceAudit(post);
+
   return post;
 }
 
@@ -81,19 +138,27 @@ export function vote(postId: string, voter: string, dir: VoteDir): void {
 
   const p = getPost(postId);
   if (!p) return;
+
+  // City rules apply to the POST AUTHOR (who receives the reward/penalty)
+  const authorCitizen = getCitizen(p.author);
+  const cityRules = getRulesForCitizen(authorCitizen);
+
   if (dir === "up" && p.voters[voter] === "up") {
-    const baseReward = RATES.UPVOTE_REWARD;
+    const baseReward = Math.round(RATES.UPVOTE_REWARD * cityRules.upvoteRewardMult);
     const decayed = getDecayedReward(baseReward);
     const alreadyMinted = getDailyMintedAmount(p.author);
     const allowed = Math.max(0, 500 - alreadyMinted);
     const finalReward = Math.min(decayed, allowed);
     if (finalReward > 0) {
-      ledger.mint(p.author, finalReward, "upvote reward");
+      ledger.mint(p.author, finalReward, `upvote reward (${cityRules.name} multiplier applied)`);
     }
     adjustAura(p.author, 5);
   } else if (dir === "down" && p.voters[voter] === "down") {
     ledger.burn(p.author, RATES.DOWNVOTE_BURN, "ratio tax — downvoted");
-    adjustAura(p.author, -5);
+    // Napistan citizens take zero aura penalty; Neo Ohio citizens take extra
+    if (!cityRules.downvoteAuraImmune) {
+      adjustAura(p.author, -cityRules.downvoteAuraPenalty);
+    }
   }
 }
 

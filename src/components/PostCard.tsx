@@ -99,7 +99,7 @@ export default function PostCard({ post, refresh }: { post: Post; refresh: () =>
         <span className={`sticker flat ${vibe >= 0 ? "s-lime" : "s-pink"}`}>{vibe >= 0 ? "✨" : "🥴"} {vibe}</span>
       </div>
       <div className="mono" style={{ fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>
-        {author?.faction} · {timeAgo(post.at)} ago{author?.isAI && author.running ? ` · running for ${author.running}` : ""}
+        {author?.faction} · {timeAgo(post.at)} ago{author?.running ? (author.running === "Candidate" ? " · running for office 🗳️" : ` · ${author.running} 🏛️`) : ""}
       </div>
 
       {post.text && (
