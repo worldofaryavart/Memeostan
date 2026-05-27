@@ -9,6 +9,14 @@ import { vibeOf, checkAndFireEvents, recordGdbSnapshot } from "@/lib/economy";
 import { governance } from "@/lib/governance";
 import { elections } from "@/lib/elections";
 import { CANDIDATES_PERSONAS } from "./personas";
+import {
+  ensureSupremeCourtAI,
+  resolveTrials,
+  fileCharge,
+  voteOnTrial,
+  getActiveTrials,
+  SUPREME_COURT_ADDRESS,
+} from "@/lib/judiciary";
 
 type Notify = () => void;
 
@@ -291,6 +299,103 @@ export function startCampaignLoop(onUpdate: Notify, intervalMs = 18000): number 
             }, 1200 + i * 1400 + Math.random() * 500);
           }
         });
+      }
+    }
+
+    // 7. AI Judiciary: Resolve expired trials & scan for chargeable human citizens
+    ensureSupremeCourtAI();
+    resolveTrials();
+
+    // AI candidates vote on active trials
+    const activeTrialsForVoting = getActiveTrials();
+    if (activeTrialsForVoting.length > 0) {
+      CANDIDATES.forEach((cand) => {
+        if (Math.random() > 0.4) {
+          const randTrial = activeTrialsForVoting[Math.floor(Math.random() * activeTrialsForVoting.length)];
+          // Only vote if they haven't voted yes or no yet
+          if (!randTrial.yesVotes.includes(cand.address) && !randTrial.noVotes.includes(cand.address)) {
+            let voteType: "guilty" | "innocent" = Math.random() > 0.5 ? "guilty" : "innocent";
+            if (cand.username.includes("GigaChad")) {
+              if (randTrial.charge.includes("CRINGE") || randTrial.charge.includes("NPC") || randTrial.charge.includes("SPAM")) {
+                voteType = "guilty";
+              }
+            } else if (cand.username.includes("Sponge")) {
+              if (randTrial.charge.includes("SPAM")) {
+                voteType = "guilty";
+              } else {
+                voteType = "innocent";
+              }
+            }
+            voteOnTrial(randTrial.id, cand.address, voteType);
+          }
+        }
+      });
+    }
+
+    // Check if we can file a mock trial if none are active
+    const active = getActiveTrials();
+    if (active.length === 0 && Math.random() > 0.3) {
+      const allCits = Object.values(db.get().citizens);
+      const humans = allCits.filter((c) => !c.isAI);
+      if (humans.length > 0) {
+        const shuffled = [...humans].sort(() => Math.random() - 0.5);
+        for (const citizen of shuffled) {
+          // Limit to citizens without a trial in the last 5 minutes
+          const recentTrials = (db.get().trials || []).filter(
+            (t) => t.defendant === citizen.address && Date.now() - t.at < 300000
+          );
+          if (recentTrials.length > 0) continue;
+
+          let charge = "";
+          let desc = "";
+
+          // a. Check spam (3+ posts in last 5 mins)
+          const fiveMinsAgo = Date.now() - 300000;
+          const userPostsLast5Mins = db.get().posts.filter((p) => p.author === citizen.address && p.at >= fiveMinsAgo);
+          if (userPostsLast5Mins.length >= 3) {
+            charge = "SPAM FLOODING THE COMMONS";
+            desc = `Citizen @${citizen.username} is posting too fast (${userPostsLast5Mins.length} posts in last 5 minutes). This slop level threatens our circulating supply and dilutes GDB.`;
+          }
+
+          // b. Check logic warning
+          if (!charge) {
+            const userPosts = db.get().posts.filter((p) => p.author === citizen.address);
+            const logicWarned = userPosts.some((p) =>
+              p.replies.some(
+                (r) =>
+                  r.author === "0xai_cyberpolice000000000000000000police" &&
+                  r.text.toLowerCase().includes("logic")
+              )
+            );
+            if (logicWarned) {
+              charge = "LOGIC USAGE IN A PUBLIC SPACE";
+              desc = `Citizen @${citizen.username} was warned by the Cyber Police for using facts, reasoning, or scientific thinking in their posts. Under Article 1, we mandate pure vibe.`;
+            }
+          }
+
+          // c. Check extreme ratio (downvotes >= 3 and downvotes > upvotes in last 10 mins)
+          if (!charge) {
+            const tenMinsAgo = Date.now() - 600000;
+            const ratioedPost = db.get().posts.find(
+              (p) => p.author === citizen.address && p.at >= tenMinsAgo && p.down >= 3 && p.down > p.up
+            );
+            if (ratioedPost) {
+              charge = "EXCESSIVE CRINGE DISTRIBUTION";
+              desc = `Citizen @${citizen.username} published a meme that received a net negative ratio (${ratioedPost.down} downvotes vs ${ratioedPost.up} upvotes). This is public vibe contamination.`;
+            }
+          }
+
+          // d. Random NPC suspicion (5% chance)
+          if (!charge && Math.random() < 0.05) {
+            charge = "SUSPICION OF BEING AN NPC";
+            desc = `An audit of citizen @${citizen.username}'s activities has raised red flags. They are exhibiting repetitive, un-sigmalike patterns. Turing test required.`;
+          }
+
+          if (charge) {
+            fileCharge(SUPREME_COURT_ADDRESS, citizen.address, charge, desc);
+            break; // file at most one trial per loop tick
+          }
+        }
       }
     }
 

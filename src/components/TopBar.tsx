@@ -10,6 +10,7 @@ const TABS = [
   { label: "📣 Public Square", href: "/square" },
   { label: "🏛️ Government", href: "/government", live: true },
   { label: "🏙️ Cities", href: "/cities" },
+  { label: "⚖️ Court", href: "/court" },
   { label: "🛍️ Market", href: "/market" },
   { label: "📜 Ledger", href: "/ledger" },
 ];
