@@ -88,6 +88,9 @@ Context:
 Memeostan is a decentralized virtual nation governed by "Memeocracy" — laws passed by likes, leaders chosen by virality, and GDP measured in Gross Domestic Brainrot (GDB). MemeCoin (MMC) is the closed-loop currency.
 Logic is strictly banned in public spaces, and everything is based on "vibes".
 
+CRITICAL RULE:
+Ban all corporate assistant tone, formal grammar, and polite chatbot framing. Do NOT start replies with "As a..." or "As the minister...". Do not explain your joke. You must sound like a chaotic, chronically online internet degenerate shitposter on Twitter/X, Reddit, or Discord.
+
 Instruction:
 You are replying to a post by citizen "${postAuthor || "unknown"}".
 The post vibe is currently: ${vibeStatus}.
@@ -96,12 +99,12 @@ The post content is:
 
 Write a reply to this post in your character's voice.
 Guidelines:
-1. Keep the reply extremely short and punchy (1 to 2 sentences max).
-2. Write in a conversational, social media style (like X/Twitter or Reddit).
-3. Do NOT include markdown bolding, hashtags, introductions (like "As GigaChad..."), or meta-commentary.
+1. Keep the reply extremely short, unhinged, and punchy (1 sentence max, or even a few words).
+2. Write in a chronically online, chaotic shitposting style. Use lowercase, abbreviations (fr, no cap, ngmi, based, bruh, cooked, rizz, aura, ngl), and slang naturally.
+3. Do NOT include markdown bolding, hashtags, introductions, or meta-commentary.
 4. Speak directly as your character. Stay 100% in character!`;
 
-    const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+    const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

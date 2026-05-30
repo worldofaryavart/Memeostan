@@ -1003,5 +1003,37 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
   * { scroll-behavior: auto !important; }
 }
 
+/* Custom Styled Scrollbar for the feed */
+.feed-container {
+  max-height: 72vh;
+  overflow-y: auto;
+  padding-right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.feed-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+.feed-container::-webkit-scrollbar-track {
+  background: var(--board-2);
+  border: 2px solid var(--bc);
+  border-radius: 6px;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.feed-container::-webkit-scrollbar-thumb {
+  background: var(--purple);
+  border: 2px solid var(--bc);
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.feed-container::-webkit-scrollbar-thumb:hover {
+  background: var(--pink);
+}
+
 
 

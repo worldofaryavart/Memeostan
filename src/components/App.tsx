@@ -98,12 +98,14 @@ export default function App() {
           {/* LEFT — the public square feed */}
           <div className="col-stack">
             <Composer refresh={refresh} />
-            {posts.length === 0 && (
-              <div className="paper">
-                <p className="hand" style={{ fontSize: 18 }}>no posts yet. post to the public square, citizen. 🚀</p>
-              </div>
-            )}
-            {feed}
+            <div className="feed-container">
+              {posts.length === 0 && (
+                <div className="paper">
+                  <p className="hand" style={{ fontSize: 18 }}>no posts yet. post to the public square, citizen. 🚀</p>
+                </div>
+              )}
+              {feed}
+            </div>
           </div>
 
           {/* RIGHT — passport + the situation room */}

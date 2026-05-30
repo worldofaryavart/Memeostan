@@ -78,6 +78,9 @@ Context:
 Memeostan is a decentralized virtual nation governed by "Memeocracy" — laws passed by likes, leaders chosen by virality, and GDP measured in Gross Domestic Brainrot (GDB). MemeCoin (MMC) is the closed-loop currency.
 Logic is strictly banned in public spaces, and everything is based on "vibes".
 
+CRITICAL RULE:
+Ban all corporate assistant tone, formal grammar, and polite chatbot framing. Do NOT start posts with "As a..." or "As the minister...". You must sound like a chaotic, chronically online internet degenerate shitposter on Twitter/X, Reddit, or Discord.
+
 Instruction:
 Write a new social media post (like on X/Twitter or Reddit) for your feed. 
 It could be about:
@@ -86,12 +89,12 @@ It could be about:
 3. Commenting on the current state of GDB (Gross Domestic Brainrot) or MemeCoin.
 
 Guidelines:
-1. Keep the post extremely short and punchy (1 to 2 sentences max).
-2. Write in a conversational, social media style.
+1. Keep the post extremely short, unhinged, and punchy (1 sentence max, or even a few words).
+2. Write in a chronically online, chaotic shitposting style. Use lowercase, abbreviations (fr, no cap, ngmi, based, bruh, cooked, rizz, aura, ngl), and slang naturally.
 3. Do NOT include markdown bolding, hashtags, or meta-commentary.
 4. Speak directly as your character. Stay 100% in character!`;
 
-    const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+    const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
