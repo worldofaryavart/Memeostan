@@ -185,4 +185,7 @@ export const db = {
       }
     }
   },
+  async load(): Promise<void> {
+    await loadStateFromServer();
+  },
 };

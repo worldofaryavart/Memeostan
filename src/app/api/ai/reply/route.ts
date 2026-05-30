@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { CANDIDATES } from "@/ai/candidates";
+import { connectToDatabase } from "@/lib/mongodb";
 import { CANDIDATES_PERSONAS } from "@/ai/personas";
 
 export async function POST(req: Request) {
@@ -7,21 +7,63 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { candidateAddress, postText, postAuthor, postVibe } = body;
 
-    const candidate = CANDIDATES.find((c) => c.address === candidateAddress);
-    if (!candidate) {
-      return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+    const { db } = await connectToDatabase();
+    const collection = db.collection("state");
+    const stateDoc = await collection.findOne({ _id: "nation" as any });
+
+    if (!stateDoc) {
+      return NextResponse.json({ error: "Nation state not found" }, { status: 404 });
+    }
+
+    const citizen = stateDoc.citizens?.[candidateAddress];
+    if (!citizen) {
+      return NextResponse.json({ error: "Citizen not found in state" }, { status: 404 });
+    }
+
+    if (!citizen.isAI) {
+      return NextResponse.json({ error: "Citizen is not an AI" }, { status: 400 });
+    }
+
+    // Daily Token Budget Check
+    if (citizen.tokenLimit === undefined) {
+      citizen.tokenLimit = 5000; // default 5k tokens per day
+    }
+    if (citizen.dailyTokensUsed === undefined) {
+      citizen.dailyTokensUsed = 0;
+    }
+    if (citizen.lastTokensResetAt === undefined) {
+      citizen.lastTokensResetAt = Date.now();
+    }
+
+    const lastResetDate = new Date(citizen.lastTokensResetAt).toDateString();
+    const nowDate = new Date().toDateString();
+    if (lastResetDate !== nowDate) {
+      citizen.dailyTokensUsed = 0;
+      citizen.lastTokensResetAt = Date.now();
+    }
+
+    if (citizen.dailyTokensUsed >= citizen.tokenLimit) {
+      console.warn(`Token budget exceeded for citizen @${citizen.username} (${citizen.dailyTokensUsed}/${citizen.tokenLimit})`);
+      return NextResponse.json({ error: "Token budget exceeded for today" }, { status: 429 });
     }
 
     const apiKey = process.env.MOONSHOT_API_KEY;
     if (!apiKey || apiKey.trim() === "") {
-      console.warn("MOONSHOT_API_KEY is not defined. Falling back to local mock replies.");
+      console.warn("MOONSHOT_API_KEY is not defined.");
       return NextResponse.json({ error: "MOONSHOT_API_KEY is not defined." }, { status: 400 });
     }
 
     const persona = CANDIDATES_PERSONAS.find((p) => p.address === candidateAddress);
-    if (!persona) {
-      return NextResponse.json({ error: "Persona not found for candidate" }, { status: 404 });
-    }
+
+    const factionDescs: Record<string, string> = {
+      Sigma: "Hyper-masculine, obsessed with fitness, gym grind, mewing, aura points, and morning cold plunges. Speaks in a commanding, disciplined, 'sigma grindset' tone, looking down on napping and NPC behavior.",
+      NPC: "Obsessed with coziness, sleep, blankets, simple routines, and snack breaks. Speaks with calm, relaxed, or sleepy vibes. Peaceful and anti-stress.",
+      Rizzler: "Obsessed with charisma, charm, social media popularity, fashion, and 'rizz'. Speaks with high confidence, rating others' styles, and using terms like 'rizzler', 'aura', and 'drip'.",
+      "Brainrot Veteran": "Obsessed with modern internet slang, Gen Alpha brainrot memes (Skibidi, Fanum Tax, Gyatt, Livvy Dunne, Baby Gronk, Mewing). Speaks in pure, cooked internet slang.",
+      "Meme Lord": "Sarcastic, chaotic, loves shitposting, ironic memes, and internet culture. Speaks in chaotic, humorous, and highly unpredictable ways, trying to trigger a reaction."
+    };
+
+    const personality = persona?.personalityDesc || citizen.personalityDesc || factionDescs[citizen.faction] || "A regular internet citizen posting memes.";
 
     // Determine the post reception/vibe state
     let vibeStatus = "fresh";
@@ -35,12 +77,12 @@ export async function POST(req: Request) {
 
     const systemPrompt = `You are playing the role of an AI citizen in the virtual nation of Memeostan.
 Your character profile:
-- Name: ${persona.username}
-- Handle: ${persona.handle}
-- Faction: ${persona.faction}
-- Running for/Cabinet Office: ${persona.running}
-- Political Party: ${persona.party}
-- Personality Description: ${persona.personalityDesc}
+- Name: ${citizen.username}
+- Handle: ${citizen.handle || "@" + citizen.username.toLowerCase()}
+- Faction: ${citizen.faction}
+- Cabinet Office: ${citizen.running || "None"}
+- Political Party: ${citizen.party || "Independent"}
+- Personality Description: ${personality}
 
 Context:
 Memeostan is a decentralized virtual nation governed by "Memeocracy" — laws passed by likes, leaders chosen by virality, and GDP measured in Gross Domestic Brainrot (GDB). MemeCoin (MMC) is the closed-loop currency.
@@ -90,6 +132,16 @@ Guidelines:
     if (!reply) {
       throw new Error("No response content received from Moonshot API");
     }
+
+    // Record token usage
+    const promptTokens = data.usage?.prompt_tokens || 0;
+    const completionTokens = data.usage?.completion_tokens || 0;
+    const totalTokens = data.usage?.total_tokens || (promptTokens + completionTokens) || 200;
+
+    citizen.dailyTokensUsed += totalTokens;
+    stateDoc.citizens[candidateAddress] = citizen;
+
+    await collection.replaceOne({ _id: "nation" as any }, stateDoc);
 
     return NextResponse.json({ reply });
   } catch (err: any) {

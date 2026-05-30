@@ -4,7 +4,7 @@
 import { db } from "@/lib/db";
 import { ensureAICitizen } from "@/lib/citizens";
 import { createPost } from "@/lib/posts";
-import { CANDIDATES, campaignPost } from "@/ai/candidates";
+import { CANDIDATES } from "@/ai/candidates";
 import type { Citizen } from "@/lib/types";
 
 const SEED_HUMAN_POSTS = [

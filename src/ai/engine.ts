@@ -5,7 +5,7 @@
 import { CANDIDATES } from "./candidates";
 import { addReply, createPost, getPost, vote } from "@/lib/posts";
 import { db } from "@/lib/db";
-import { vibeOf, checkAndFireEvents, recordGdbSnapshot } from "@/lib/economy";
+import { vibeOf, checkAndFireEvents, recordGdbSnapshot, tuneRatesAI } from "@/lib/economy";
 import { governance } from "@/lib/governance";
 import { elections } from "@/lib/elections";
 import { CANDIDATES_PERSONAS } from "./personas";
@@ -20,47 +20,52 @@ import {
 
 type Notify = () => void;
 
-// When a human posts, 1–2 candidates react after a beat (feels alive, not instant).
+// When a human posts, check if any AI is explicitly mentioned to trigger a reply beat.
 export function onUserPost(postId: string, onUpdate: Notify): void {
-  const reactors = [...CANDIDATES]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 1 + Math.floor(Math.random() * 2));
+  const fresh = getPost(postId);
+  if (!fresh) return;
 
-  reactors.forEach((c, i) => {
-    setTimeout(() => {
-      const post = getPost(postId);
-      if (!post) return;
-      
-      // a candidate's reaction also nudges the vote (they're citizens too)
-      if (Math.random() > 0.5) {
-        vote(postId, c.address, Math.random() > 0.4 ? "up" : "down");
-      }
-      
-      const fresh = getPost(postId);
-      if (fresh) {
-        // Try calling the Next.js API route for candidate reply
+  const state = db.get();
+  const allAI = Object.values(state.citizens).filter((cit) => cit.isAI);
+
+  allAI.forEach((ai) => {
+    const text = fresh.text.toLowerCase();
+    const isMentioned = 
+      text.includes(ai.username.toLowerCase()) || 
+      (ai.handle && text.includes(ai.handle.toLowerCase()));
+
+    if (isMentioned) {
+      setTimeout(() => {
+        const post = getPost(postId);
+        if (!post) return;
+        
+        // A candidate's reaction also nudges the vote (they're citizens too)
+        if (Math.random() > 0.5) {
+          vote(postId, ai.address, Math.random() > 0.4 ? "up" : "down");
+        }
+
         fetch("/api/ai/reply", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            candidateAddress: c.address,
-            postText: fresh.text,
-            postAuthor: fresh.author,
-            postVibe: vibeOf(fresh),
+            candidateAddress: ai.address,
+            postText: post.text,
+            postAuthor: post.author,
+            postVibe: vibeOf(post),
           }),
         })
           .then((res) => res.json())
           .then((data) => {
             if (data && data.reply) {
-              addReply(postId, c.address, data.reply);
+              addReply(postId, ai.address, data.reply);
               onUpdate();
             }
           })
           .catch((err) => {
-            console.error("Failed to generate AI reply:", err);
+            console.error(`Failed to generate AI reply for @${ai.username}:`, err);
           });
-      }
-    }, 900 + i * 1100 + Math.random() * 600);
+      }, 900 + Math.random() * 1200);
+    }
   });
 }
 
@@ -190,9 +195,30 @@ export function startCampaignLoop(onUpdate: Notify, intervalMs = 18000): number 
           onUpdate();
         }
       })
-      .catch((err) => {
-        console.error("Failed to generate campaign post:", err);
-      });
+    // 1b. Ghost citizen drops a shitpost via API (40% chance per tick)
+    if (Math.random() < 0.4) {
+      const state = db.get();
+      const ghostAddresses = Object.keys(state.citizens).filter((addr) => addr.startsWith("0xghost"));
+      if (ghostAddresses.length > 0) {
+        const randGhostAddr = ghostAddresses[Math.floor(Math.random() * ghostAddresses.length)];
+        fetch("/api/ai/campaign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidateAddress: randGhostAddr }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.text) {
+              const post = createPost({ author: randGhostAddr, text: data.text });
+              triggerAICampaignDebate(post.id, randGhostAddr, onUpdate);
+              onUpdate();
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to generate ghost post:", err);
+          });
+      }
+    }
 
     // 2. AI candidates vote on proposals
     aiVoteOnProposals();
@@ -219,8 +245,9 @@ export function startCampaignLoop(onUpdate: Notify, intervalMs = 18000): number 
       }
     });
 
-    // 5. Record GDB snapshot for trend tracking
+    // 5. Record GDB snapshot for trend tracking and tune Federal Reserve rates
     recordGdbSnapshot();
+    tuneRatesAI();
 
     // 6. Check and fire economic events — if one fires, post breaking news + AI commentary
     const firedEvent = checkAndFireEvents();
@@ -375,6 +402,95 @@ export function startCampaignLoop(onUpdate: Notify, intervalMs = 18000): number 
         }
       }
     }
+
+    // 8. Dynamic AI Spawning: check population ratio to maintain 2:1 bot-to-human ratio
+    const state = db.get();
+    const citizensList = Object.values(state.citizens);
+    const humansCount = citizensList.filter((cit) => !cit.isAI).length;
+    const aiCount = citizensList.filter((cit) => cit.isAI).length;
+    if (aiCount < humansCount * 2) {
+      console.log(`Population equilibrium check triggered. AI count (${aiCount}) is lower than 2x humans (${humansCount}). Spawning new AI...`);
+      fetch("/api/ai/spawn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+        .then(() => db.load())
+        .then(() => onUpdate())
+        .catch((err) => console.error("Failed to automatically spawn AI citizen:", err));
+    }
+
+    // 9. AI Attention Spans check on recent human posts
+    const now = Date.now();
+    const recentHumanPosts = db.get().posts.filter(
+      (p) => p.at >= now - 5 * 60 * 1000 // last 5 minutes
+    );
+
+    const allCitizens = Object.values(state.citizens);
+    const aiCitizens = allCitizens.filter((cit) => cit.isAI);
+
+    recentHumanPosts.forEach((post) => {
+      // Find the author citizen to see if they're a human
+      const authorCit = state.citizens[post.author];
+      if (authorCit && authorCit.isAI) return; // skip if the post was made by a bot
+
+      aiCitizens.forEach((ai) => {
+        // Check if this AI has already replied to this post
+        const alreadyReplied = post.replies.some((r) => r.author === ai.address);
+        if (alreadyReplied) return;
+
+        // Check triggers:
+        // 1. Mention
+        const text = post.text.toLowerCase();
+        const isMentioned = 
+          text.includes(ai.username.toLowerCase()) || 
+          (ai.handle && text.includes(ai.handle.toLowerCase()));
+
+        // 2. Banger post (vibe > 5)
+        const isBanger = vibeOf(post) > 5;
+
+        // 3. Boosted post (boosts > 0)
+        const isBoosted = (post.boosts || 0) > 0;
+
+        // 4. Tipped candidate: transferred MMC from post.author to ai.address since post.at
+        const hasTipped = state.txs.some(
+          (tx) => 
+            tx.type === "transfer" && 
+            tx.from === post.author && 
+            tx.to === ai.address && 
+            tx.at >= post.at
+        );
+
+        if (isMentioned || isBanger || isBoosted || hasTipped) {
+          // Trigger reply after a random short delay
+          setTimeout(() => {
+            // Fetch fresh state to ensure we don't reply twice
+            const currentPost = getPost(post.id);
+            if (!currentPost || currentPost.replies.some((r) => r.author === ai.address)) return;
+
+            fetch("/api/ai/reply", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                candidateAddress: ai.address,
+                postText: currentPost.text,
+                postAuthor: currentPost.author,
+                postVibe: vibeOf(currentPost),
+              }),
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                if (data && data.reply) {
+                  addReply(currentPost.id, ai.address, data.reply);
+                  onUpdate();
+                }
+              })
+              .catch((err) => {
+                console.error(`Failed to generate AI attention reply for ${ai.username}:`, err);
+              });
+          }, Math.random() * 5000);
+        }
+      });
+    });
 
     onUpdate();
   }, intervalMs);

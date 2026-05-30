@@ -14,7 +14,7 @@ export const RATES = {
   SPAM_TAX: 20, // burn for low-effort posts (dilution control)
   WELCOME_GRANT: 250, // starting MMC for a new citizen
   BOOST_COST: 50, // cost to boost a post
-} as const;
+};
 
 // Gross Domestic Brainrot: posts produced × engagement × money velocity.
 export function grossDomesticBrainrot(): number {
@@ -276,4 +276,51 @@ export function getRecentEvents(n = 5): EconomicEvent[] {
 export function isTaxHikeActive(): boolean {
   const endsAt = db.get().taxHikeEndsAt ?? 0;
   return Date.now() < endsAt;
+}
+
+/**
+ * Federal Reserve AI Rate-Tuning:
+ * Adjusts rates dynamically based on circulating supply and inflation/dilution.
+ */
+export function tuneRatesAI(): void {
+  const dilution = memeDilution();
+  const supply = ledger.circulatingSupply();
+
+  // Baseline values
+  let basePost = 50;
+  let baseSpam = 20;
+  let baseUpvote = 5;
+  let baseDownvote = 3;
+
+  // 1. Dilution tuning
+  if (dilution > 40) {
+    // Tighten policy
+    basePost = Math.max(10, Math.round(basePost * (1 - (dilution - 40) / 100)));
+    baseSpam = Math.min(60, Math.round(baseSpam * (1 + (dilution - 40) / 50)));
+    baseUpvote = Math.max(2, Math.round(baseUpvote * (1 - (dilution - 40) / 120)));
+    baseDownvote = Math.min(15, Math.round(baseDownvote * (1 + (dilution - 40) / 50)));
+  } else if (dilution < 20) {
+    // Stimulus policy
+    basePost = Math.min(80, Math.round(basePost * 1.3));
+    baseSpam = Math.max(10, Math.round(baseSpam * 0.7));
+    baseUpvote = Math.min(10, Math.round(baseUpvote * 1.3));
+  }
+
+  // 2. Supply cap tuning
+  if (supply > 150000) {
+    const supplyFactor = Math.min(2.0, supply / 150000);
+    // reduce printing rewards, increase burning taxes
+    basePost = Math.max(5, Math.round(basePost / supplyFactor));
+    baseUpvote = Math.max(1, Math.round(baseUpvote / supplyFactor));
+    baseSpam = Math.min(80, Math.round(baseSpam * supplyFactor));
+    baseDownvote = Math.min(20, Math.round(baseDownvote * supplyFactor));
+  }
+
+  // Apply changes to RATES object
+  (RATES as any).POST = basePost;
+  (RATES as any).SPAM_TAX = baseSpam;
+  (RATES as any).UPVOTE_REWARD = baseUpvote;
+  (RATES as any).DOWNVOTE_BURN = baseDownvote;
+
+  console.log(`[Federal Reserve AI] Rates tuned. Dilution: ${dilution}%, Supply: ${supply} MMC. Rates -> POST: ${RATES.POST}, SPAM: ${RATES.SPAM_TAX}, UPVOTE: ${RATES.UPVOTE_REWARD}, DOWNVOTE: ${RATES.DOWNVOTE_BURN}`);
 }

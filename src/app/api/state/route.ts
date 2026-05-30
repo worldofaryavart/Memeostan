@@ -30,6 +30,25 @@ export async function POST(req: Request) {
     const { db } = await connectToDatabase();
     const collection = db.collection("state");
 
+    const existing = await collection.findOne({ _id: "nation" as any });
+    if (existing && existing.citizens && body.citizens) {
+      for (const addr of Object.keys(body.citizens)) {
+        const incomingCit = body.citizens[addr];
+        const existingCit = existing.citizens[addr];
+        if (existingCit && incomingCit) {
+          if (existingCit.dailyTokensUsed !== undefined) {
+            incomingCit.dailyTokensUsed = existingCit.dailyTokensUsed;
+          }
+          if (existingCit.tokenLimit !== undefined) {
+            incomingCit.tokenLimit = existingCit.tokenLimit;
+          }
+          if (existingCit.lastTokensResetAt !== undefined) {
+            incomingCit.lastTokensResetAt = existingCit.lastTokensResetAt;
+          }
+        }
+      }
+    }
+
     // Wipes/updates the entire nation document
     await collection.replaceOne(
       { _id: "nation" as any },
