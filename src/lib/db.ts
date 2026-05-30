@@ -9,7 +9,7 @@ import type { NationState } from "./types";
 
 const NS = "memeostan:v1";
 
-function freshState(): NationState {
+export function freshState(): NationState {
   return {
     version: 2,
     citizens: {},
@@ -109,29 +109,54 @@ let cache: NationState | null = null;
 
 const hasWindow = typeof window !== "undefined";
 
+export async function loadStateFromServer(): Promise<void> {
+  if (!hasWindow) return;
+  try {
+    const res = await fetch("/api/state");
+    if (res.ok) {
+      const serverState = await res.json();
+      cache = migrate(serverState);
+    }
+  } catch (err) {
+    console.error("Failed to load state from MongoDB server, falling back to localStorage:", err);
+    try {
+      const raw = window.localStorage.getItem(NS);
+      if (raw) cache = migrate(JSON.parse(raw));
+    } catch {}
+  }
+}
+
 function read(): NationState {
   if (cache) return cache;
-  if (!hasWindow) {
-    // server render: hand back an empty nation; real state hydrates on the client
-    cache = freshState();
-    return cache;
+  // Temporary fallback during initial hydration
+  if (hasWindow) {
+    try {
+      const raw = window.localStorage.getItem(NS);
+      if (raw) {
+        cache = migrate(JSON.parse(raw));
+        return cache;
+      }
+    } catch {}
   }
-  let state: NationState;
-  try {
-    const raw = window.localStorage.getItem(NS);
-    state = raw ? { ...freshState(), ...JSON.parse(raw) } : freshState();
-  } catch {
-    state = freshState();
-  }
-  if (!state.founded) state.founded = Date.now();
-  state = migrate(state);
-  cache = state;
-  return state;
+  cache = freshState();
+  return cache;
 }
 
 function persist(state: NationState): void {
   cache = state;
-  if (hasWindow) window.localStorage.setItem(NS, JSON.stringify(state));
+  if (hasWindow) {
+    // Write locally first for instant responses
+    try {
+      window.localStorage.setItem(NS, JSON.stringify(state));
+    } catch {}
+
+    // Persist to MongoDB asynchronously in the background
+    fetch("/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    }).catch((err) => console.error("Failed to sync state to MongoDB server:", err));
+  }
 }
 
 export const db = {
@@ -145,8 +170,19 @@ export const db = {
     persist(state);
     return state;
   },
-  reset(): void {
-    if (hasWindow) window.localStorage.removeItem(NS);
-    cache = null;
+  async reset(): Promise<void> {
+    cache = freshState();
+    if (hasWindow) {
+      window.localStorage.removeItem(NS);
+      try {
+        await fetch("/api/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cache),
+        });
+      } catch (err) {
+        console.error("Failed to reset MongoDB state on server:", err);
+      }
+    }
   },
 };

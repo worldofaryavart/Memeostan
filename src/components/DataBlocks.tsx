@@ -16,7 +16,9 @@ export function Dashboard() {
   const supply = ledger.circulatingSupply();
   const state = db.get();
   const history = state.gdbHistory || [];
-  const totalCitizens = Object.keys(state.citizens).length;
+  const citizensList = Object.values(state.citizens);
+  const humanCitizens = citizensList.filter(c => !c.isAI).length;
+  const aiCitizens = citizensList.filter(c => c.isAI).length;
 
   // Generate SVG path for a tiny zine-style GDB trend line
   const renderSparkline = () => {
@@ -58,7 +60,8 @@ export function Dashboard() {
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <span className={`sticker ${dilution > 40 ? "s-pink" : "s-lime"}`}>💧 dilution {dilution}%</span>
         <span className="sticker s-purple">🪙 supply {supply.toLocaleString()}</span>
-        <span className="sticker s-yellow">🧍 citizens {totalCitizens}</span>
+        <span className="sticker s-yellow">🧍 humans {humanCitizens}</span>
+        <span className="sticker s-cyan">🤖 bots {aiCitizens}</span>
       </div>
       {renderSparkline()}
     </div>

@@ -5,7 +5,7 @@ import { CANDIDATES_PERSONAS } from "@/ai/personas";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { candidateAddress, postText, postAuthor, postVibe } = body;
+    const { candidateAddress } = body;
 
     const candidate = CANDIDATES.find((c) => c.address === candidateAddress);
     if (!candidate) {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const apiKey = process.env.MOONSHOT_API_KEY;
     if (!apiKey || apiKey.trim() === "") {
-      console.warn("MOONSHOT_API_KEY is not defined. Falling back to local mock replies.");
+      console.warn("MOONSHOT_API_KEY is not defined. Falling back to standard message.");
       return NextResponse.json({ error: "MOONSHOT_API_KEY is not defined." }, { status: 400 });
     }
 
@@ -23,17 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Persona not found for candidate" }, { status: 404 });
     }
 
-    // Determine the post reception/vibe state
-    let vibeStatus = "fresh";
-    if (postVibe > 0) {
-      vibeStatus = "banger (positive vibe, people love it)";
-    } else if (postVibe < 0) {
-      vibeStatus = "cringe (negative vibe, ratioed, people dislike it)";
-    } else {
-      vibeStatus = "mid (neutral, average, unvoted)";
-    }
-
-    const systemPrompt = `You are playing the role of an AI citizen in the virtual nation of Memeostan.
+    const systemPrompt = `You are playing the role of an AI citizen/candidate running for office in the virtual nation of Memeostan.
 Your character profile:
 - Name: ${persona.username}
 - Handle: ${persona.handle}
@@ -47,16 +37,16 @@ Memeostan is a decentralized virtual nation governed by "Memeocracy" — laws pa
 Logic is strictly banned in public spaces, and everything is based on "vibes".
 
 Instruction:
-You are replying to a post by citizen "${postAuthor || "unknown"}".
-The post vibe is currently: ${vibeStatus}.
-The post content is:
-"${postText || ""}"
+Write a new social media post (like on X/Twitter or Reddit) for your feed. 
+It could be about:
+1. Your election campaign platform or promises (e.g. promoting naps, napping rights, cold plunges, gym grind, doge wisdom, or rizz).
+2. A formal "Department/Office Update" or directive related to your Cabinet Office ("${persona.running}").
+3. Commenting on the current state of GDB (Gross Domestic Brainrot) or MemeCoin.
 
-Write a reply to this post in your character's voice.
 Guidelines:
-1. Keep the reply extremely short and punchy (1 to 2 sentences max).
-2. Write in a conversational, social media style (like X/Twitter or Reddit).
-3. Do NOT include markdown bolding, hashtags, introductions (like "As GigaChad..."), or meta-commentary.
+1. Keep the post extremely short and punchy (1 to 2 sentences max).
+2. Write in a conversational, social media style.
+3. Do NOT include markdown bolding, hashtags, or meta-commentary.
 4. Speak directly as your character. Stay 100% in character!`;
 
     const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
@@ -69,7 +59,7 @@ Guidelines:
         model: "moonshot-v1-8k",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Write your reply to: "${postText}"` }
+          { role: "user", content: "Write a short in-character post." }
         ],
         temperature: 1.0,
         max_tokens: 150,
@@ -86,14 +76,14 @@ Guidelines:
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content?.trim();
-    if (!reply) {
+    const text = data.choices?.[0]?.message?.content?.trim();
+    if (!text) {
       throw new Error("No response content received from Moonshot API");
     }
 
-    return NextResponse.json({ reply });
+    return NextResponse.json({ text });
   } catch (err: any) {
-    console.error("Error generating reply via Moonshot:", err);
+    console.error("Error generating campaign post via Moonshot:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

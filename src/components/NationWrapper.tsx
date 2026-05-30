@@ -6,6 +6,7 @@ import { startCampaignLoop } from "@/ai/engine";
 import { recordGdbSnapshot } from "@/lib/economy";
 import { elections } from "@/lib/elections";
 import { governance } from "@/lib/governance";
+import { loadStateFromServer } from "@/lib/db";
 
 export default function NationWrapper({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -24,16 +25,19 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
         }
       }
 
-      // 2. Boot/seed the nation
-      bootNation();
-      setReady(true);
+      // 2. Load state asynchronously from MongoDB server database
+      loadStateFromServer().then(() => {
+        // 3. Boot/seed the nation
+        bootNation();
+        setReady(true);
+      });
 
-      // 2. Start the AI campaign loop (which posts, replies, and votes periodically)
+      // 4. Start the AI campaign loop (which posts, replies, and votes periodically every 30s)
       const campaign = startCampaignLoop(() => {
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("nation-update"));
         }
-      }, 120000);
+      }, 30000);
 
       // 3. Start the national database state clock
       const tick = window.setInterval(() => {

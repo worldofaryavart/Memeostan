@@ -2,7 +2,7 @@
 //   - onUserPost(): when YOU post, candidates reply in character (the magic).
 //   - startCampaignLoop(): candidates periodically drop campaign posts and vote.
 
-import { CANDIDATES, generateReply, campaignPost } from "./candidates";
+import { CANDIDATES } from "./candidates";
 import { addReply, createPost, getPost, vote } from "@/lib/posts";
 import { db } from "@/lib/db";
 import { vibeOf, checkAndFireEvents, recordGdbSnapshot } from "@/lib/economy";
@@ -38,7 +38,7 @@ export function onUserPost(postId: string, onUpdate: Notify): void {
       
       const fresh = getPost(postId);
       if (fresh) {
-        // Try calling the Next.js API route first for candidate reply
+        // Try calling the Next.js API route for candidate reply
         fetch("/api/ai/reply", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -53,15 +53,11 @@ export function onUserPost(postId: string, onUpdate: Notify): void {
           .then((data) => {
             if (data && data.reply) {
               addReply(postId, c.address, data.reply);
-            } else {
-              addReply(postId, c.address, generateReply(c, fresh));
+              onUpdate();
             }
-            onUpdate();
           })
-          .catch(() => {
-            // Offline/error fallback to local generation
-            addReply(postId, c.address, generateReply(c, fresh));
-            onUpdate();
+          .catch((err) => {
+            console.error("Failed to generate AI reply:", err);
           });
       }
     }, 900 + i * 1100 + Math.random() * 600);
@@ -81,55 +77,26 @@ export function onSystemPost(postId: string, type: "candidacy" | "referendum", o
       const post = getPost(postId);
       if (!post) return;
 
-      const text = post.text.toLowerCase();
-      let replyText = "";
-
-      if (type === "referendum") {
-        if (c.username.includes("GigaChad")) {
-          const yesWords = ["sigma", "mewing", "cold plunge", "grind", "gdb", "work", "gym", "lift"];
-          const noWords = ["nap", "sleep", "break", "rest", "lazy"];
-          if (yesWords.some((w) => text.includes(w))) {
-            replyText = "🗿 PEAK SIGMA PROPOSAL. Under my watch, we will mandate this. +100 Aura for filing this. 📈";
-          } else if (noWords.some((w) => text.includes(w))) {
-            replyText = "🗿 Too much slacking. Naps are for the weak NPC class. Vote NO on this immediately. 🤫";
-          } else {
-            replyText = "🗿 Does this bill increase GDB? If not, it is mid and lacks grindset. We need mewing laws instead.";
+      fetch("/api/ai/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidateAddress: c.address,
+          postText: post.text,
+          postAuthor: post.author,
+          postVibe: vibeOf(post),
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.reply) {
+            addReply(postId, c.address, data.reply);
+            onUpdate();
           }
-        } else if (c.username.includes("Sponge")) {
-          const yesWords = ["nap", "sleep", "break", "rest", "blanket", "holiday", "snack", "krabby", "burger"];
-          const noWords = ["cold plunge", "mewing", "grind", "5am"];
-          if (yesWords.some((w) => text.includes(w))) {
-            replyText = "🧽 I'M READY to vote YES! Naps and snack breaks are basic human rights. Cozy vibes only! 💤";
-          } else if (noWords.some((w) => text.includes(w))) {
-            replyText = "🧽 5 AM cold plunges?? Bro, that is literally a torture technique. Barnacles. Vote NO! 🚨";
-          } else {
-            replyText = "🧽 Looks cozy enough! Let's pass this and go jellyfishing! 🫧";
-          }
-        } else if (c.username.includes("Doge")) {
-          const yesWords = ["rizz", "wow", "amaze", "constitution", "court", "charter", "silence", "oracle"];
-          const noWords = ["cringe", "spam", "ratio"];
-          if (yesWords.some((w) => text.includes(w))) {
-            replyText = "🐕 Wow, such legislation. Very constitutional. The oracle decrees this a massive win. Much support.";
-          } else if (noWords.some((w) => text.includes(w))) {
-            replyText = "🐕 Very cringe. Oracle detects zero rizz in this bill. Lost aura. Much ratio expected.";
-          } else {
-            replyText = "🐕 Pondering this proposal. Many variables. Very logic. Let the voters decide. Wow.";
-          }
-        }
-      } else if (type === "candidacy") {
-        if (c.username.includes("GigaChad")) {
-          replyText = "🗿 Another challenger enters the arena. Unless you can mew for 48 hours straight, you stand no chance. 🤫";
-        } else if (c.username.includes("Sponge")) {
-          replyText = "🧽 Good luck! Let's keep it clean, friendly, and make sure we schedule a group nap break later! 🫧💤";
-        } else if (c.username.includes("Doge")) {
-          replyText = "🐕 Wow. Another candidate. Much competition. Let the rizz war commence. Good luck, citizen. Wow.";
-        }
-      }
-
-      if (replyText) {
-        addReply(postId, c.address, replyText);
-        onUpdate();
-      }
+        })
+        .catch((err) => {
+          console.error("Failed to generate AI system post reply:", err);
+        });
     }, 1000 + i * 1500 + Math.random() * 500);
   });
 }
@@ -181,41 +148,51 @@ function triggerAICampaignDebate(postId: string, authorAddress: string, onUpdate
       const post = getPost(postId);
       if (!post) return;
 
-      const postText = post.text.toLowerCase();
-      let replyText = "";
-
-      if (opponent.username.includes("GigaChad")) {
-        if (postText.includes("nap") || postText.includes("sleep") || postText.includes("lazy") || postText.includes("break")) {
-          replyText = "🗿 Naps are for NPCs. A true sigma is always mewing, cold plunging, or grinding. Vote GigaChad. 🗿";
-        } else {
-          replyText = "🗿 Acceptable. But does it increase your deadlift? Sigma grindset demands physical superiority.";
-        }
-      } else if (opponent.username.includes("Sponge")) {
-        if (postText.includes("mewing") || postText.includes("plunge") || postText.includes("grind") || postText.includes("cvo")) {
-          replyText = "🧽 Woah there, chill out GigaChad! Cold water at 5 AM? That sounds like a disaster. Nap time is way better! 💤";
-        } else {
-          replyText = "🧽 Sounds fun, but is it cozy? Let's have a snack and talk about this over a nice nap. 🫧";
-        }
-      } else if (opponent.username.includes("Doge")) {
-        replyText = "🐕 Wow, very campaign statement. Much debate. Doge Oracle is watching. Such politics. Amaze.";
-      }
-
-      if (replyText) {
-        addReply(postId, opponent.address, replyText);
-        onUpdate();
-      }
+      fetch("/api/ai/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidateAddress: opponent.address,
+          postText: post.text,
+          postAuthor: post.author,
+          postVibe: vibeOf(post),
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.reply) {
+            addReply(postId, opponent.address, data.reply);
+            onUpdate();
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to generate AI debate comment:", err);
+        });
     }, 1200 + i * 1600 + Math.random() * 600);
   });
 }
 
 // Periodic campaign chatter so the feed keeps moving on its own.
 export function startCampaignLoop(onUpdate: Notify, intervalMs = 18000): number {
-  let seed = Date.now();
   return window.setInterval(() => {
-    // 1. Candidate drops a campaign post
+    // 1. Candidate drops a campaign post via API
     const c = CANDIDATES[Math.floor(Math.random() * CANDIDATES.length)];
-    const post = createPost({ author: c.address, text: campaignPost(c, seed++) });
-    triggerAICampaignDebate(post.id, c.address, onUpdate);
+    fetch("/api/ai/campaign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidateAddress: c.address }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.text) {
+          const post = createPost({ author: c.address, text: data.text });
+          triggerAICampaignDebate(post.id, c.address, onUpdate);
+          onUpdate();
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to generate campaign post:", err);
+      });
 
     // 2. AI candidates vote on proposals
     aiVoteOnProposals();
