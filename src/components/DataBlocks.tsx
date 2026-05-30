@@ -16,6 +16,7 @@ export function Dashboard() {
   const supply = ledger.circulatingSupply();
   const state = db.get();
   const history = state.gdbHistory || [];
+  const totalCitizens = Object.keys(state.citizens).length;
 
   // Generate SVG path for a tiny zine-style GDB trend line
   const renderSparkline = () => {
@@ -57,6 +58,7 @@ export function Dashboard() {
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <span className={`sticker ${dilution > 40 ? "s-pink" : "s-lime"}`}>💧 dilution {dilution}%</span>
         <span className="sticker s-purple">🪙 supply {supply.toLocaleString()}</span>
+        <span className="sticker s-yellow">🧍 citizens {totalCitizens}</span>
       </div>
       {renderSparkline()}
     </div>
@@ -88,7 +90,10 @@ export function ActivePoll() {
     if (!citizen) return;
     if (!topProp) return;
     governance.vote(topProp.id, citizen.address, voteType);
-    window.location.reload(); // force reload or state update
+    // Re-render via the nation-update event instead of a jarring full reload.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("nation-update"));
+    }
   };
 
   const totalVotes = topProp ? topProp.yesVotes.length + topProp.noVotes.length : 0;

@@ -10,6 +10,8 @@ import type { Proposal, Citizen } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import { onSystemPost } from "@/ai/engine";
+import FloatingStickers from "@/components/FloatingStickers";
+import PageHero from "@/components/PageHero";
 
 export default function GovernmentPage() {
   const { refresh } = useNation();
@@ -228,12 +230,15 @@ export default function GovernmentPage() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">the high chambers of memeostan</span>
-          <h1>government &amp; direct democracy</h1>
-          <div className="sub">file bills. elect AI ministers. pass supreme laws.</div>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers preset="government" />
+
+        <PageHero
+          kicker="the high chambers of memeostan"
+          title="GOVERNMENT"
+          titleAccent="GOVERNMENT"
+          tagline="file bills. elect AI ministers. pass laws."
+        />
 
         <div className="cols">
           {/* LEFT: Proposals, Voting, Laws */}

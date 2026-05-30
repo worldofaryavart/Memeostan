@@ -6,6 +6,8 @@ import { me, signOut } from "@/lib/citizens";
 import { ledger } from "@/lib/ledger";
 import { shortAddress } from "@/lib/wallet";
 
+import { useState } from "react";
+
 const TABS = [
   { label: "📣 Public Square", href: "/square" },
   { label: "🏛️ Government", href: "/government", live: true },
@@ -15,12 +17,11 @@ const TABS = [
   { label: "📜 Ledger", href: "/ledger" },
 ];
 
-// The product top bar (Brainrot Zine): wordmark + in-world nav, plus the
-// signed-in citizen's MMC balance, wallet, and the Renounce (sign-out) button.
 export default function TopBar({ refresh }: { refresh: () => void }) {
   const pathname = usePathname();
   const citizen = me();
   const balance = citizen ? ledger.balanceOf(citizen.address) : 0;
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const renounce = () => {
     signOut();
@@ -50,15 +51,36 @@ export default function TopBar({ refresh }: { refresh: () => void }) {
         })}
       </nav>
 
-      {citizen && (
-        <div className="topbar-right">
-          <span className="sticker s-lime">🪙 {balance.toLocaleString()} MMC</span>
-          <Link href={`/citizen/${citizen.address}`} className="wallet-chip" style={{ textDecoration: "none" }}>
-            {shortAddress(citizen.address)}
-          </Link>
-          <button className="btn ghost sm" onClick={renounce}>Renounce</button>
-        </div>
-      )}
+      <div className="topbar-right">
+        {citizen && (
+          <>
+            <span className="sticker s-lime">🪙 {balance.toLocaleString()} MMC</span>
+            <Link href={`/citizen/${citizen.address}`} className="wallet-chip" style={{ textDecoration: "none", marginRight: 8 }}>
+              {shortAddress(citizen.address)}
+            </Link>
+            <button className="btn ghost sm" onClick={renounce} style={{ marginRight: 8 }}>Renounce</button>
+          </>
+        )}
+        <button 
+          className="btn ghost sm" 
+          style={{ 
+            color: confirmReset ? "#fff" : "#ff4d4d", 
+            borderColor: "#ff4d4d",
+            backgroundColor: confirmReset ? "#ff4d4d" : "transparent"
+          }} 
+          onClick={() => {
+            if (confirmReset) {
+              localStorage.clear();
+              window.location.reload();
+            } else {
+              setConfirmReset(true);
+              setTimeout(() => setConfirmReset(false), 3000);
+            }
+          }}
+        >
+          {confirmReset ? "Confirm Nuke?" : "Reset DB"}
+        </button>
+      </div>
     </header>
   );
 }

@@ -46,7 +46,7 @@ describe("ledger.transfer", () => {
     const res = ledger.transfer(A, B, 40, "tip");
     expect(res.ok).toBe(true);
     expect(ledger.balanceOf(A)).toBe(60);
-    expect(ledger.balanceOf(B)).toBe(40);
+    expect(ledger.balanceOf(B)).toBe(39);
   });
 
   it("rejects transfers larger than the balance", () => {

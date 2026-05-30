@@ -13,7 +13,18 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     try {
-      // 1. Boot/seed the nation
+      // 1. Check for query parameter reset override
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("reset") === "true") {
+          window.localStorage.clear();
+          // Remove '?reset=true' from the URL bar without reloading
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      }
+
+      // 2. Boot/seed the nation
       bootNation();
       setReady(true);
 

@@ -8,6 +8,8 @@ import { shortAddress } from "@/lib/wallet";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import Link from "next/link";
+import FloatingStickers from "@/components/FloatingStickers";
+import PageHero from "@/components/PageHero";
 
 export default function LedgerExplorerPage() {
   const { refresh } = useNation();
@@ -55,12 +57,15 @@ export default function LedgerExplorerPage() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">national financial auditing ledger</span>
-          <h1>Block Ledger Explorer</h1>
-          <div className="sub">Memeostan blockchain transactions: fully public, auditable, and immutable.</div>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers preset="ledger" />
+
+        <PageHero
+          kicker="national financial auditing ledger"
+          title="THE LEDGER"
+          titleAccent="LEDGER"
+          tagline="every coin, minted & burned, on the record."
+        />
 
         <div className="cols" style={{ gridTemplateColumns: "1fr" }}>
           <div className="col-stack">

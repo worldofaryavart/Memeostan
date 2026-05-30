@@ -12,6 +12,8 @@ import PostCard from "./PostCard";
 import MyCitizen from "./MyCitizen";
 import { Dashboard, ActivePoll, Parties, Leaderboard, Ledger, TopMeme } from "./DataBlocks";
 import * as N from "./Nonsense";
+import FloatingStickers from "./FloatingStickers";
+import PageHero from "./PageHero";
 
 // THE CABINET — the elected AI ministers, as taped index cards.
 function Cabinet() {
@@ -81,14 +83,16 @@ export default function App() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">memedemocracy is in session</span>
-          <h1>this country is <em>100% run by memes</em></h1>
-          <div className="sub">post. vote. meme. rule.</div>
-          <span className="floaty" style={{ right: "8%", bottom: 24, transform: "rotate(4deg)" }}>i ❤ memes</span>
-          <span className="floaty" style={{ right: "26%", bottom: 56, transform: "rotate(-6deg)" }}>make memes<br />not war</span>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers />
+
+        <PageHero
+          kicker="memedemocracy is in session"
+          title="THE PUBLIC SQUARE"
+          titleAccent="SQUARE"
+          tagline="post. vote. meme. rule."
+          subtagline="one live feed — the whole country happens here."
+        />
 
         <div className="cols">
           {/* LEFT — the public square feed */}

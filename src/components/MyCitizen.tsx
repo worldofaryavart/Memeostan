@@ -47,7 +47,9 @@ export default function MyCitizen() {
       setAmountStr("");
       setMemo("");
       setShowSend(false);
-      window.location.reload();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("nation-update"));
+      }
     } else {
       setError(res.reason || "Transfer failed.");
     }

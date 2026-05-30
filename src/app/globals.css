@@ -455,6 +455,11 @@ a { color: var(--lime); }
 
 .tilt-l { transform: rotate(var(--tilt-l)) !important; }
 .tilt-r { transform: rotate(var(--tilt-r)) !important; }
+/* tilted cards still straighten + pop on hover (the !important above would
+   otherwise win over the generic .paper:hover rule) */
+.paper.tilt-l:hover, .paper.tilt-r:hover {
+  transform: rotate(0deg) scale(1.02) !important;
+}
 
 /* dark paper variant — for the ledger / on-board panels */
 .paper.dark, .blk.b-dark {
@@ -963,6 +968,39 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
     transform: none !important;
     filter: none !important;
   }
+}
+
+/* ============================================================
+   PEAK HERO — standalone kicker chip (was scoped to .hero only)
+   so PageHero can use it on every in-world page.
+   ============================================================ */
+.kicker {
+  background: var(--pink);
+  color: #fff;
+  font-family: var(--poster);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  padding: 5px 11px;
+  border: var(--b);
+  border-radius: var(--r-paper);
+  box-shadow: var(--hard-sm);
+  transform: rotate(-1.5deg);
+}
+
+/* ============================================================
+   ACCESSIBILITY — honor reduced-motion. "Max chaos" still ships,
+   but users who ask the OS for calm get a still page.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .floating-sticker,
+  .floating-sticker > div,
+  .anim-bob, .anim-float, .anim-wiggle, .anim-spin, .anim-chaotic-shake,
+  .anim-pulse-swell, .anim-wave-drift, .anim-orbit-drift,
+  .anim-nyan-fly, .anim-nyan-bob, .equalizer-bar, .blink, .lyrics-text {
+    animation: none !important;
+  }
+  * { scroll-behavior: auto !important; }
 }
 
 

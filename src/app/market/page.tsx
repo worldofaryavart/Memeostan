@@ -16,6 +16,8 @@ import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import Passport from "@/components/Passport";
 import type { EconomicEvent } from "@/lib/types";
+import FloatingStickers from "@/components/FloatingStickers";
+import PageHero from "@/components/PageHero";
 
 interface StoreItem {
   id: string;
@@ -136,12 +138,15 @@ export default function MarketPage() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">the bazaar of high status</span>
-          <h1>National Cosmetics Store</h1>
-          <div className="sub">Burn your hard-earned MemeCoins on status badges and vanity borders.</div>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers preset="market" />
+
+        <PageHero
+          kicker="the bazaar of high status"
+          title="THE MARKET"
+          titleAccent="MARKET"
+          tagline="burn MMC on status. flex on common citizens."
+        />
 
         {/* ── ECONOMIC DASHBOARD ────────────────────────────────────────── */}
         <div className="paper p-purple binder-clip" style={{ marginBottom: 32 }}>

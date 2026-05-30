@@ -15,6 +15,8 @@ import {
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import type { SkirmishResult } from "@/lib/types";
+import FloatingStickers from "@/components/FloatingStickers";
+import PageHero from "@/components/PageHero";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -119,12 +121,15 @@ export default function CitiesPage() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">war room — territorial dispatch</span>
-          <h1>Cities of Memeostan</h1>
-          <div className="sub">Four factions. One continent. Territory is seized through superior aura, population, and 25 MMC war chests.</div>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers preset="cities" />
+
+        <PageHero
+          kicker="war room — territorial dispatch"
+          title="CITIES"
+          titleAccent="CITIES"
+          tagline="four factions. one continent. seize territory."
+        />
 
         {/* ── MY CITY CALLOUT ──────────────────────────────────────────────── */}
         {citizen && myCity && (

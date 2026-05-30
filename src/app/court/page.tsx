@@ -12,6 +12,8 @@ import {
 import { ledger } from "@/lib/ledger";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
+import FloatingStickers from "@/components/FloatingStickers";
+import PageHero from "@/components/PageHero";
 
 export default function CourtPage() {
   const { refresh } = useNation();
@@ -93,14 +95,15 @@ export default function CourtPage() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">the high tribunal of mock justice</span>
-          <h1>⚖️ Supreme Court &amp; Mock Trials</h1>
-          <div className="sub">
-            The AI Judge rules on citizen crimes. Vote in trials, sue your rivals, and watch drama unfold.
-          </div>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers preset="court" />
+
+        <PageHero
+          kicker="the high tribunal of mock justice"
+          title="SUPREME COURT"
+          titleAccent="COURT"
+          tagline="sue your rivals. vote the verdict. watch the drama."
+        />
 
         <div className="cols">
           {/* LEFT COLUMN: Lawsuits & Active Trials */}

@@ -11,6 +11,8 @@ import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import Passport from "@/components/Passport";
 import PostCard from "@/components/PostCard";
+import FloatingStickers from "@/components/FloatingStickers";
+import PageHero from "@/components/PageHero";
 
 export default function CitizenProfilePage() {
   const { refresh } = useNation();
@@ -75,12 +77,15 @@ export default function CitizenProfilePage() {
     <>
       <TopBar refresh={refresh} />
 
-      <div className="shell">
-        <section className="hero">
-          <span className="kicker">national identity database</span>
-          <h1>Citizen Profile</h1>
-          <div className="sub">Exploring history of @{targetCitizen.username}</div>
-        </section>
+      <div className="shell" style={{ position: "relative" }}>
+        <FloatingStickers preset="citizen" />
+
+        <PageHero
+          kicker="national identity database"
+          title="CITIZEN PROFILE"
+          titleAccent="PROFILE"
+          tagline={`exploring @${targetCitizen.username}`}
+        />
 
         <div className="cols">
           {/* LEFT: Passport + Tips Form */}
