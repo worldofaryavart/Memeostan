@@ -1005,7 +1005,7 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
 
 /* Custom Styled Scrollbar for the feed */
 .feed-container {
-  max-height: 72vh;
+  max-height: 440vh;
   overflow-y: auto;
   padding-right: 12px;
   display: flex;
