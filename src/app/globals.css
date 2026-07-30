@@ -162,7 +162,11 @@ a { color: var(--lime); }
 }
 .col-stack { display: flex; flex-direction: column; gap: 18px; }
 @media (max-width: 900px) {
-  .cols { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr), not 1fr: a grid item defaults to min-width:auto, so the
+     column refuses to shrink below its widest unbreakable content and the whole
+     stack juts off the side of a narrow phone. */
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .col-stack { min-width: 0; }
 }
 
 /* ============================================================
@@ -1037,3 +1041,120 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
 
 
 
+
+/* ============================================================
+   RESPONSIVE — the same zine, made to fit a phone.
+
+   The collage is designed for a wide board: every card is rotated a degree
+   or two, shadows are offset 6px, and decorative stickers hang off negative
+   offsets into the page margins. A phone has no margins, and a rotated tall
+   card's *bounding box* is wider than the card itself — so the card juts a
+   few pixels past the viewport, `overflow-x: hidden` clips it rather than
+   letting you scroll there, and the last character of every line vanishes.
+
+   Below these breakpoints the collage gives up its tilt and its margin
+   stickers. It keeps the torn-paper edges, the ink borders, the hard
+   shadows, the tape and the colour — the character survives the fit.
+   ============================================================ */
+
+/* Margin stickers need margins to hang in. Below this they were already faded
+   to 12% opacity — decoration nobody can see, that still pushed the page
+   ~210px wider than the screen and downloaded a multi-megabyte PNG to do it. */
+@media (max-width: 900px) {
+  .floating-sticker { display: none !important; }
+}
+
+@media (max-width: 700px) {
+  :root {
+    /* Offset shadows scale with everything else or they eat the gutter. */
+    --hard: 4px 4px 0 rgba(0, 0, 0, 0.85);
+    --hard-sm: 3px 3px 0 rgba(0, 0, 0, 0.8);
+    --hard-xl: 6px 6px 0 rgba(0, 0, 0, 0.9);
+  }
+
+  .shell { padding: 0 14px; }
+  .cols { gap: 16px; }
+  .col-stack { gap: 14px; }
+
+  /* No rotation. This is the fix for the clipped text. */
+  .paper, .blk,
+  .paper:nth-child(4n+1), .blk:nth-child(4n+1),
+  .paper:nth-child(4n+2), .blk:nth-child(4n+2),
+  .paper:nth-child(4n+3), .blk:nth-child(4n+3),
+  .paper:nth-child(4n+4), .blk:nth-child(4n+4),
+  .tilt-l, .tilt-r,
+  .kicker {
+    transform: none !important;
+  }
+  /* Touch devices latch :hover after a tap; a 1.02 scale would re-introduce
+     the same overhang the tilt just gave up. */
+  .paper:hover, .blk:hover,
+  .paper.tilt-l:hover, .paper.tilt-r:hover {
+    transform: none !important;
+    box-shadow: var(--hard);
+  }
+
+  .paper { padding: 14px; }
+  .paper.big { padding: 16px; }
+
+  /* Long unbroken handles and addresses shouldn't be able to widen a card. */
+  .paper, .blk { overflow-wrap: anywhere; }
+
+  /* Top bar: brand on its own line, nav scrolls sideways instead of stacking
+     into a five-line wall. */
+  .topbar {
+    padding: 12px 14px 8px;
+    gap: 10px;
+  }
+  .brandmark { width: 100%; }
+  .wordmark .top, .wordmark .bot { font-size: 22px; }
+  .wordmark .tag { font-size: 14px; }
+  .nav {
+    width: 100%;
+    flex: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .navtab { flex: 0 0 auto; }
+  .navtab[data-active] { transform: none; }
+  .topbar-right { width: 100%; }
+
+  /* Tap targets. 15px text in a 9px box is a 33px target; thumbs want ~44. */
+  .btn { padding: 11px 16px; min-height: 44px; }
+  .btn.sm { padding: 8px 12px; min-height: 38px; }
+  .voterow { gap: 10px; }
+  .voterow .btn { min-width: 56px; justify-content: center; }
+
+  /* 16px inputs — anything smaller makes iOS Safari zoom the page on focus. */
+  input, textarea, select { font-size: 16px; }
+
+  /* Handwriting at 13px on a phone is a coin toss. Give the hand-lettered
+     body copy a floor it can actually be read at. */
+  .hand { font-size: 16px; }
+  .bignum { font-size: 32px; }
+
+  /* `nowrap` is right for a chip that reads "🪙 420" and wrong for the ones
+     carrying a whole sentence (the economic-event banner). A chip that fits
+     still won't wrap; one that doesn't now wraps instead of widening the page. */
+  .sticker { white-space: normal; }
+}
+
+/* Two-up panels that have to become one-up on a narrow screen. `1fr 1fr` can't:
+   grid items default to min-width:auto, so the columns hold their content width
+   and push the row off the side. */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 420px) {
+  .shell { padding: 0 10px; }
+  .wordmark .top, .wordmark .bot { font-size: 19px; }
+  .paper { padding: 12px; }
+  .card-title, .blk-title { font-size: 13px; }
+}

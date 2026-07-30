@@ -230,7 +230,7 @@ export default function CourtPage() {
                   The archive folders are empty. No trials have concluded yet.
                 </p>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
+                <div className="grid-2" style={{ marginTop: 12 }}>
                   {resolvedTrials.map((trial) => {
                     const def = getCitizen(trial.defendant);
                     const plName = trial.plaintiff === "THE STATE" || trial.plaintiff === "0xai_supremecourt0000000000000000court0"
