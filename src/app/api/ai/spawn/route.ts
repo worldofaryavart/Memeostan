@@ -42,7 +42,6 @@ export async function POST() {
         pfp: persona.pfp,
         party: persona.party,
         personalityDesc: persona.personalityDesc,
-        announcementId: `post_${Math.random().toString(36).slice(2, 10)}`,
       });
       return { ok: true, skipped: false };
     });

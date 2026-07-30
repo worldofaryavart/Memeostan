@@ -33,10 +33,13 @@ import {
   applyCampaignPost,
   applyReply,
   applyTokenSpend,
+  dailyTokenCap,
   economyBeat,
+  nationHasBudget,
   needsMoreAI,
   pickCampaignAuthor,
   pickReplyTargets,
+  tokensSpentToday,
 } from "@/ai/world";
 import type { Citizen, NationState } from "@/lib/types";
 
@@ -65,6 +68,12 @@ export async function POST() {
     const claim = await mutateState((state) => {
       const now = Date.now();
       if (now - (state.lastAIBeatAt ?? 0) < BEAT_COOLDOWN_MS) {
+        return { ok: false, commit: false, skipped: true as const };
+      }
+      if (!nationHasBudget()) {
+        console.warn(
+          `Daily LLM budget spent (${tokensSpentToday()}/${dailyTokenCap()} tokens) — the AI citizens are quiet until tomorrow.`
+        );
         return { ok: false, commit: false, skipped: true as const };
       }
       state.lastAIBeatAt = now;

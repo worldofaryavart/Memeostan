@@ -3,6 +3,8 @@
 import { useNation } from "./useNation";
 import { me, allCitizens } from "@/lib/citizens";
 import { allPosts } from "@/lib/posts";
+import { groupFeed } from "@/lib/feed";
+import OfficialNotices from "./OfficialNotices";
 import TopBar from "./TopBar";
 import Ticker from "./Ticker";
 import Passport from "./Passport";
@@ -71,11 +73,19 @@ export default function App() {
     <N.UpgradeBrainrot key="up" />,
   ];
 
+  // Fold runs of consecutive state notices into one card before rendering, so a
+  // stack of four court filings doesn't push the actual square off the screen.
   const feed: React.ReactNode[] = [];
-  posts.forEach((p, i) => {
-    feed.push(<PostCard key={p.id} post={p} refresh={refresh} />);
-    if (i === 1) feed.push(<ActivePoll key="poll" />);
-    if (i > 1 && i % 3 === 0 && feedFiller.length) feed.push(feedFiller.shift());
+  let slot = 0;
+  groupFeed(posts).forEach((entry) => {
+    if (entry.kind === "notices") {
+      feed.push(<OfficialNotices key={`notices-${entry.posts[0].id}`} posts={entry.posts} />);
+    } else {
+      feed.push(<PostCard key={entry.post.id} post={entry.post} refresh={refresh} />);
+    }
+    slot += 1;
+    if (slot === 2) feed.push(<ActivePoll key="poll" />);
+    if (slot > 2 && slot % 3 === 0 && feedFiller.length) feed.push(feedFiller.shift());
   });
   feed.push(...feedFiller);
 

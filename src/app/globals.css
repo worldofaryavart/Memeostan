@@ -1160,6 +1160,51 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
 .post-state { border-left-color: var(--yellow); }
 .post-you { border-left-color: var(--lime); }
 
+/* A folded run of state notices — see src/components/OfficialNotices.tsx */
+.notice-stack { padding: 12px 14px; }
+.notice-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+}
+.notice-list {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.notice-list li {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.notice-list .mono { font-size: 11px; opacity: 0.75; }
+.notice-full {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: var(--b-dashed);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.notice-full p { font-size: 15px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.notice-meta {
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+
 /* Two-up panels that have to become one-up on a narrow screen. `1fr 1fr` can't:
    grid items default to min-width:auto, so the columns hold their content width
    and push the row off the side. */

@@ -19,29 +19,47 @@ import {
   resolveTrials,
   voteOnTrial,
 } from "@/lib/judiciary";
+import { CYBER_POLICE, isStateAccount } from "@/lib/systemAccounts";
 import { CANDIDATES } from "./candidates";
 import { CANDIDATES_PERSONAS } from "./personas";
 import { chargeTokens } from "./moonshot";
 import type { Citizen, EconomicEvent } from "@/lib/types";
 
-const CYBER_POLICE = "0xai_cyberpolice000000000000000000police";
-
 // ── who speaks next ──────────────────────────────────────────────────────────
 
-/** Pick the citizen who drops the next campaign post. Pure read. */
+/**
+ * Pick the citizen who drops the next campaign post.
+ *
+ * This used to choose at random from the three hardcoded candidates (plus a
+ * ghost 40% of the time), which is why the feed sounded like the same three
+ * voices on a loop — every AI citizen the Demographics Bureau invented could
+ * reply to you, but none of them could ever start a post.
+ *
+ * Now anyone with a personality is eligible, and whoever has been quiet longest
+ * goes first, so the feed rotates instead of repeating. Pure read.
+ */
 export function pickCampaignAuthor(): Citizen | null {
   const state = db.get();
 
-  // 40% of the time a background "ghost" citizen shitposts instead of a minister,
-  // so the feed isn't only politicians talking.
-  if (Math.random() < 0.4) {
-    const ghosts = Object.values(state.citizens).filter((c) => c.address.startsWith("0xghost"));
-    if (ghosts.length > 0) return ghosts[Math.floor(Math.random() * ghosts.length)];
+  const eligible = Object.values(state.citizens).filter(
+    (c) =>
+      !isStateAccount(c.address) && // the courts don't shitpost
+      (c.isAI || c.address.startsWith("0xghost"))
+  );
+  if (eligible.length === 0) return null;
+
+  const lastSpoke = new Map<string, number>();
+  for (const post of state.posts) {
+    if (!lastSpoke.has(post.author)) lastSpoke.set(post.author, post.at);
   }
 
-  const candidates = CANDIDATES.map((c) => state.citizens[c.address]).filter(Boolean);
-  if (candidates.length === 0) return null;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  // Quietest first, then pick randomly among the quietest few so it stays
+  // unpredictable rather than strictly round-robin.
+  const queue = eligible.sort(
+    (a, b) => (lastSpoke.get(a.address) ?? 0) - (lastSpoke.get(b.address) ?? 0)
+  );
+  const pool = queue.slice(0, Math.min(5, queue.length));
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export interface ReplyTarget {
@@ -118,12 +136,36 @@ export function applyReply(postId: string, aiAddress: string, text: string): voi
   addReply(postId, aiAddress, text);
 }
 
-/** Book LLM spend against the AI citizen who did the talking. */
+/** Book LLM spend against the citizen who did the talking, and against the nation. */
 export function applyTokenSpend(address: string, tokens: number): void {
   db.update((s) => {
     const citizen = s.citizens[address];
     if (citizen) chargeTokens(citizen, tokens);
+
+    const today = new Date().toDateString();
+    if (!s.llmSpend || s.llmSpend.date !== today) s.llmSpend = { date: today, tokens: 0 };
+    s.llmSpend.tokens += Math.max(0, tokens);
   });
+}
+
+/**
+ * The nation's own daily ceiling on LLM spend. Per-citizen budgets used to be the
+ * only limit, which was fine when three citizens could talk; now that every AI
+ * citizen is eligible, the ceiling has to be national. Override with
+ * MEMEOSTAN_DAILY_TOKEN_CAP.
+ */
+export function dailyTokenCap(): number {
+  const configured = Number(process.env.MEMEOSTAN_DAILY_TOKEN_CAP);
+  return Number.isFinite(configured) && configured > 0 ? configured : 60_000;
+}
+
+export function tokensSpentToday(): number {
+  const spend = db.get().llmSpend;
+  return spend && spend.date === new Date().toDateString() ? spend.tokens : 0;
+}
+
+export function nationHasBudget(): boolean {
+  return tokensSpentToday() < dailyTokenCap();
 }
 
 // ── the unpaid parts of a beat (no LLM involved) ──────────────────────────────
@@ -323,7 +365,6 @@ export interface SpawnRecord {
   pfp: string;
   party: string;
   personalityDesc: string;
-  announcementId: string;
 }
 
 export function registerSpawnedAI(spawn: SpawnRecord): void {
@@ -356,9 +397,8 @@ export function registerSpawnedAI(spawn: SpawnRecord): void {
 
   ledger.mint(spawn.address, 1000, "AI campaign treasury");
 
-  createPost({
-    author: SUPREME_COURT_ADDRESS,
-    text: `📢 CITIZENSHIP ANNOUNCEMENT: A new AI citizen, @${spawn.username}, has claimed their passport and joined the ${spawn.faction} faction! Welcome to Memeostan! 🪪`,
-    id: spawn.announcementId,
-  });
+  // No feed post for an arrival. "@X has claimed their passport" was 7% of the
+  // whole timeline and interesting to nobody; new citizens show up in the ticker
+  // and the population count instead, and this one will introduce themselves the
+  // next time they get picked to speak.
 }

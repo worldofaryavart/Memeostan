@@ -126,6 +126,9 @@ export interface NationState {
   lastTickAt?: number;
   lastGdbSnapshotAt?: number;
   lastAIBeatAt?: number; // throttles AI world beats (and therefore LLM spend)
+  /** Nation-wide LLM spend for the day. Per-citizen budgets don't bound the bill
+   *  once every AI citizen is eligible to speak — this does. */
+  llmSpend?: { date: string; tokens: number };
 
   // Phase 2 additions
   proposals?: Proposal[];
