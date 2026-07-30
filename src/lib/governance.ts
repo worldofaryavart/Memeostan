@@ -98,9 +98,15 @@ export const governance = {
     return { ok: true };
   },
 
-  // Auto-resolve any active proposals that have expired
-  resolveExpired(): void {
+  // Auto-resolve any active proposals that have expired.
+  // Returns true if any actually resolved, so callers know state changed.
+  resolveExpired(): boolean {
     const now = Date.now();
+    const anyExpired = (db.get().proposals ?? []).some(
+      (p) => p.status === "active" && now > p.endsAt
+    );
+    if (!anyExpired) return false;
+
     db.update((s) => {
       if (!s.proposals) s.proposals = [];
       s.proposals.forEach((prop) => {
@@ -228,5 +234,7 @@ export const governance = {
         }
       });
     });
+
+    return true;
   },
 };

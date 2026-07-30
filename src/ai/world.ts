@@ -62,6 +62,35 @@ export function pickCampaignAuthor(): Citizen | null {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+/**
+ * Should an AI citizen start a post right now?
+ *
+ * The rule: AI performs to an empty room and listens to a full one. When people
+ * are posting, the bots stop competing for the timeline and answer them instead —
+ * a reply to a human is the thing worth having, an unprompted bot monologue on
+ * top of a live conversation is not.
+ */
+export function shouldStartCampaignPost(): boolean {
+  const state = db.get();
+  const now = Date.now();
+
+  const recent = state.posts.filter((p) => p.at >= now - 10 * 60 * 1000);
+  const isSynthetic = (address: string) =>
+    isStateAccount(address) || Boolean(state.citizens[address]?.isAI);
+
+  const humanPosts = recent.filter((p) => !isSynthetic(p.author)).length;
+  if (humanPosts >= 2) return false; // the square is busy; go and reply to them
+
+  // Even in a quiet room, don't let the last stretch of feed become all machine.
+  const window = state.posts.slice(0, 12);
+  if (window.length >= 8) {
+    const synthetic = window.filter((p) => isSynthetic(p.author)).length;
+    if (synthetic / window.length > 0.75) return false;
+  }
+
+  return true;
+}
+
 export interface ReplyTarget {
   aiAddress: string;
   postId: string;
@@ -233,7 +262,9 @@ export function aiVoteInElections(): void {
 }
 
 export function economyBeat(): EconomicEvent | null {
-  recordGdbSnapshot();
+  // No GDB snapshot here — the world tick already takes one on its own schedule,
+  // and taking a second one every beat meant every beat changed state, which
+  // pushed a fresh copy of the nation to every open tab.
   tuneRatesAI();
   return checkAndFireEvents();
 }
@@ -350,12 +381,22 @@ function prosecuteSomebody(): void {
 
 // ── population ───────────────────────────────────────────────────────────────
 
-/** The nation aims for roughly two AI citizens per human. */
+/**
+ * The AI population is a fixed cast, not a multiple of the human one.
+ *
+ * It used to target two AI citizens per human, which is backwards: every person
+ * who joined made the country *more* synthetic, and the feed drowned them in
+ * exactly the proportion they were trying to join. A country needs enough
+ * characters to feel inhabited when it's empty; past that, more bots is just
+ * more bots.
+ */
+export const AI_CAST_SIZE = 8;
+
 export function needsMoreAI(): boolean {
-  const citizens = Object.values(db.get().citizens);
-  const humans = citizens.filter((c) => !c.isAI).length;
-  const ais = citizens.filter((c) => c.isAI).length;
-  return humans > 0 && ais < humans * 2;
+  const cast = Object.values(db.get().citizens).filter(
+    (c) => c.isAI && !isStateAccount(c.address)
+  ).length;
+  return cast < AI_CAST_SIZE;
 }
 
 export interface SpawnRecord {

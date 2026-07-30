@@ -17,7 +17,9 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as {
       postId?: string;
       candidateAddress?: string;
+      sinceRev?: number;
     };
+    const clientRev = typeof body.sinceRev === "number" ? body.sinceRev : null;
 
     if (typeof body.postId !== "string" || !body.postId) {
       return NextResponse.json({ ok: false, reason: "postId is required." }, { status: 400 });
@@ -61,7 +63,13 @@ export async function POST(req: Request) {
     }
 
     if (generated.length === 0) {
-      return NextResponse.json({ ok: true, replies: 0, state: publicState(state) });
+      const rev = state.rev ?? 0;
+      return NextResponse.json({
+        ok: true,
+        replies: 0,
+        rev,
+        ...(clientRev === rev ? { unchanged: true } : { state: publicState(state) }),
+      });
     }
 
     const applied = await mutateState(() => {
@@ -72,10 +80,12 @@ export async function POST(req: Request) {
       return { ok: true };
     });
 
+    const rev = applied.state.rev ?? 0;
     return NextResponse.json({
       ok: true,
       replies: generated.length,
-      state: publicState(applied.state),
+      rev,
+      ...(clientRev === rev ? { unchanged: true } : { state: publicState(applied.state) }),
     });
   } catch (err) {
     console.error("AI reply failed:", err);

@@ -13,7 +13,7 @@
 
 import type { Collection, Document } from "mongodb";
 import { connectToDatabase } from "./mongodb";
-import { freshState, migrate, withState } from "./db";
+import { freshState, migrate, pruneState, withState } from "./db";
 import { bootNation } from "@/data/seed";
 import type { NationState } from "./types";
 
@@ -52,6 +52,7 @@ export async function commitState(state: NationState, baseRev: number): Promise<
   const collection = await stateCollection();
 
   pruneNonces(state);
+  pruneState(state);
   state.rev = baseRev + 1;
 
   const result = await collection.replaceOne(

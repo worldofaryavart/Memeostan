@@ -39,12 +39,18 @@ import {
   needsMoreAI,
   pickCampaignAuthor,
   pickReplyTargets,
+  shouldStartCampaignPost,
   tokensSpentToday,
 } from "@/ai/world";
 import type { Citizen, NationState } from "@/lib/types";
 
 // Minimum gap between beats, whatever the number of open tabs.
-const BEAT_COOLDOWN_MS = 12_000;
+//
+// This was 12s, which is a bot speaking five times a minute into a feed that is
+// supposed to feel like people. It also set the floor on bandwidth: a beat that
+// does anything changes state, and a state change ships the nation to every open
+// tab. Slowing the cast down makes the square calmer and the bill smaller.
+const BEAT_COOLDOWN_MS = 45_000;
 const MAX_REPLIES_PER_BEAT = 2;
 
 function shortId(prefix: string): string {
@@ -58,7 +64,10 @@ interface PlannedReply {
   tokensUsed: number;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as { sinceRev?: number };
+  const clientRev = typeof body.sinceRev === "number" ? body.sinceRev : null;
+
   try {
     // ── 1. claim the beat ────────────────────────────────────────────────────
     let author: Citizen | null = null;
@@ -79,8 +88,9 @@ export async function POST() {
       state.lastAIBeatAt = now;
 
       // Decide who talks while we hold the claim, so two beats can't pick the same
-      // reply target.
-      author = pickCampaignAuthor();
+      // reply target. Replies are always on the table; an unprompted post only
+      // happens when the square is quiet enough to want one.
+      author = shouldStartCampaignPost() ? pickCampaignAuthor() : null;
       replyPlan = pickReplyTargets(MAX_REPLIES_PER_BEAT);
       claimedState = state;
       return { ok: true, skipped: false as const };
@@ -157,12 +167,14 @@ export async function POST() {
       return { ok: true, needsAI: needsMoreAI() };
     });
 
+    const rev = applied.state.rev ?? 0;
     return NextResponse.json({
       ok: true,
       postId: campaignPostId,
       replies: replies.length,
       needsAI: applied.result.needsAI,
-      state: publicState(applied.state),
+      rev,
+      ...(clientRev === rev ? { unchanged: true } : { state: publicState(applied.state) }),
     });
   } catch (err) {
     console.error("AI beat failed:", err);

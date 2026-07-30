@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { startCampaignLoop } from "@/ai/engine";
-import { loadStateFromServer } from "@/lib/db";
+import { db, loadStateFromServer } from "@/lib/db";
 import { requestWorldTick, upgradeLegacyKeyIfNeeded } from "@/lib/actionClient";
 import { adoptLegacySession } from "@/lib/session";
 
@@ -20,11 +20,13 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
     let campaign = 0;
 
     try {
-      // 1. `?reset=true` clears this browser only. The nation on the server is not
-      //    ours to wipe from a query string any more.
+      // 1. `?reset=true` drops this browser's cached copy of the nation. It
+      //    deliberately does NOT clear all of localStorage — your citizenship key
+      //    lives there and there is no copy of it on the server, so wiping it
+      //    would destroy the passport rather than refresh the page.
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get("reset") === "true") {
-        window.localStorage.clear();
+        db.clearLocal();
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
@@ -41,7 +43,7 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
       // 3. AI chatter. The posts themselves are written server-side by /api/ai/*.
       campaign = startCampaignLoop(() => {
         window.dispatchEvent(new Event("nation-update"));
-      }, 30000);
+      }, 45000);
 
       // 4. The world clock. Resolution logic lives on the server; this only asks it
       //    to run, and only while the tab is actually being looked at.
@@ -69,8 +71,10 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
           <p className="mono" style={{ fontSize: 13, marginBottom: 20, whiteSpace: "pre-wrap", background: "rgba(0,0,0,0.3)", padding: 15, borderRadius: 6, color: "#fff", textAlign: "left" }}>
             {error}
           </p>
-          <button className="btn yellow" onClick={() => { localStorage.clear(); window.location.reload(); }}>
-            RESET LOCALSTORAGE & RELOAD
+          {/* Clears the cached nation, not the citizenship key — a crash screen
+              is the worst possible place to quietly delete someone's passport. */}
+          <button className="btn yellow" onClick={() => { db.clearLocal(); window.location.reload(); }}>
+            CLEAR CACHED NATION & RELOAD
           </button>
         </div>
       </div>

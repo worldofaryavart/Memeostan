@@ -175,20 +175,30 @@ export async function actAsync(
   return confirmed;
 }
 
-/** Ask the server to advance the world clock (resolve elections, trials, events). */
+/**
+ * Ask the server to advance the world clock (resolve elections, trials, events).
+ *
+ * Sends the revision we already hold, so a tick that changed nothing — which is
+ * most of them — comes back as a couple of hundred bytes instead of the whole
+ * nation.
+ */
 export function requestWorldTick(): void {
   const { envelope } = envelopeFor("world.tick", {});
+  envelope.sinceRev = db.get().rev ?? 0;
+
   void enqueue(async () => {
     const res = await fetch("/api/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(envelope),
     });
-    const body = (await res.json().catch(() => ({}))) as { state?: NationState };
-    if (body.state) {
-      applyServerState(body.state);
-      announceUpdate();
-    }
+    const body = (await res.json().catch(() => ({}))) as {
+      state?: NationState;
+      unchanged?: boolean;
+    };
+    if (body.unchanged || !body.state) return;
+    applyServerState(body.state);
+    announceUpdate();
   });
 }
 

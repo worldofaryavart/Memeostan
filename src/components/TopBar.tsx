@@ -6,7 +6,7 @@ import { me, signOut } from "@/lib/citizens";
 import { ledger } from "@/lib/ledger";
 import { shortAddress } from "@/lib/wallet";
 
-import { useState } from "react";
+
 
 const TABS = [
   { label: "📣 Public Square", href: "/square" },
@@ -21,9 +21,19 @@ export default function TopBar({ refresh }: { refresh: () => void }) {
   const pathname = usePathname();
   const citizen = me();
   const balance = citizen ? ledger.balanceOf(citizen.address) : 0;
-  const [confirmReset, setConfirmReset] = useState(false);
 
+  // Signing out forgets the key, and the key is the citizenship — since identity
+  // moved into the browser there is no copy on the server to sign back in with.
+  // So this asks first, and points at the backup button before it does it.
   const renounce = () => {
+    const ok = window.confirm(
+      "Renouncing citizenship erases the key for this passport from this browser.\n\n" +
+        "There is no copy on the server — without a backup it cannot be restored, " +
+        "and the MMC and aura on this address are gone with it.\n\n" +
+        'Back it up first with "Back up citizenship" on your passport.\n\n' +
+        "Renounce anyway?"
+    );
+    if (!ok) return;
     signOut();
     refresh();
   };
@@ -61,25 +71,6 @@ export default function TopBar({ refresh }: { refresh: () => void }) {
             <button className="btn ghost sm" onClick={renounce} style={{ marginRight: 8 }}>Renounce</button>
           </>
         )}
-        <button 
-          className="btn ghost sm" 
-          style={{ 
-            color: confirmReset ? "#fff" : "#ff4d4d", 
-            borderColor: "#ff4d4d",
-            backgroundColor: confirmReset ? "#ff4d4d" : "transparent"
-          }} 
-          onClick={() => {
-            if (confirmReset) {
-              localStorage.clear();
-              window.location.reload();
-            } else {
-              setConfirmReset(true);
-              setTimeout(() => setConfirmReset(false), 3000);
-            }
-          }}
-        >
-          {confirmReset ? "Confirm Nuke?" : "Reset DB"}
-        </button>
       </div>
     </header>
   );

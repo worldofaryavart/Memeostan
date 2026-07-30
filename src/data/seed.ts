@@ -103,7 +103,11 @@ export function bootNation(): void {
           faction: g.faction,
           pfp: g.pfp,
           aura: 900 + i * 120,
-          isAI: false,
+          // Ghosts are seeded characters whose posts come out of the same LLM as
+          // every other bot's. Labelling them human made the population look more
+          // real than it is, in the one place where being straight about it costs
+          // nothing — you can tell who's a person, and that's the point.
+          isAI: true,
           joinedAt: Date.now(),
         };
         st.citizens[addr] = ghost;

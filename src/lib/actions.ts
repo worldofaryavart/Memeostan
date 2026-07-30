@@ -51,6 +51,12 @@ export interface ActionEnvelope {
   legacyProof?: string;
   /** Public key being registered (citizen.register / citizen.upgradeKey). */
   pubKey?: PublicKeyJwk;
+  /**
+   * The revision the caller already holds. Purely an optimisation hint: if the
+   * nation is still at this revision afterwards, the response omits the state
+   * instead of shipping a copy the caller already has.
+   */
+  sinceRev?: number;
 }
 
 export interface ActionResult {
@@ -171,6 +177,10 @@ function imageDataUrl(payload: Record<string, unknown>): string | null {
 }
 
 const CITY_NAMES = ALL_CITIES.map((c) => c.name);
+
+// World-tick pacing. In memory, not in state — see the note on "world.tick".
+let lastWorldTickAt = 0;
+const GDB_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
 
 // ── the registry ─────────────────────────────────────────────────────────────
 
@@ -453,31 +463,38 @@ export const ACTIONS: Record<string, ActionDef> = {
   // Unsigned world maintenance. Safe to leave open because every effect is gated
   // on wall-clock deadlines that already passed — a caller can hurry nothing along,
   // and calling it a thousand times does the same thing as calling it once.
+  //
+  // The throttle is deliberately in memory rather than in state: persisting a
+  // "last ticked at" made every single tick a write, which bumped the revision,
+  // which pushed a full copy of the nation to every client every few seconds.
+  // Now a tick that finds nothing to do commits nothing at all.
   "world.tick": {
     signed: false,
     run() {
       const now = Date.now();
-      const state = db.get();
-      if (now - (state.lastTickAt ?? 0) < 4_000) {
+      if (now - lastWorldTickAt < 4_000) {
         return { ok: true, commit: false, data: { skipped: true } };
       }
+      lastWorldTickAt = now;
 
-      db.update((s) => {
-        s.lastTickAt = now;
-      });
+      const state = db.get();
+      let changed = false;
 
-      elections.resolveElection();
-      governance.resolveExpired();
-      resolveTrials();
+      if (elections.resolveElection()) changed = true;
+      if (governance.resolveExpired()) changed = true;
+      if (resolveTrials() > 0) changed = true;
 
-      if (now - (state.lastGdbSnapshotAt ?? 0) > 30_000) {
+      // A GDB reading is a state change, so taking one every 30s meant pushing
+      // the nation to every client twice a minute for a single number.
+      if (now - (state.lastGdbSnapshotAt ?? 0) > GDB_SNAPSHOT_INTERVAL_MS) {
         recordGdbSnapshot();
         db.update((s) => {
           s.lastGdbSnapshotAt = now;
         });
+        changed = true;
       }
 
-      return { ok: true };
+      return { ok: true, commit: changed, data: { changed } };
     },
   },
 };

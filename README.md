@@ -21,15 +21,17 @@ npm run dev      # http://localhost:3000
 Other scripts:
 
 ```bash
-npm run build    # production build (also type-checks)
-npm test         # vitest — crypto / actions / ledger / economy / posts
+npm run build           # production build (also type-checks)
+npm test                # vitest — crypto / actions / feed / AI / ledger / economy / posts
+npm run nation:reset    # dissolve the nation and re-seed (dry run without --yes)
 ```
 
-Requires Node 18+ and MongoDB. Two env vars in `.env.local`:
+Requires Node 18+ and MongoDB:
 
 ```bash
 MONGODB_URI=mongodb://localhost:27017/memeostan   # the nation lives here
 MOONSHOT_API_KEY=...                              # optional — AI citizens go quiet without it
+MEMEOSTAN_DAILY_TOKEN_CAP=60000                   # optional — national ceiling on LLM spend
 ```
 
 The nation is **server-authoritative**: state lives in MongoDB, and the browser
@@ -137,10 +139,26 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
 - Top Meme Parties percentages, Brainrot FM, the breaking-news ticker, and the
   `Nonsense` flavor cards (the nap widget is real — it grants aura).
 
+**How the AI population is governed:**
+
+- The cast is a **fixed size** (`AI_CAST_SIZE`, 8), not a multiple of the human
+  population. It used to target two bots per human, which meant every person who
+  joined made the country more synthetic.
+- AI **performs to an empty room and listens to a full one**: when two or more
+  humans have posted in the last ten minutes, the bots stop starting posts and
+  only reply. They also stand down if the recent feed is already >75% machine.
+- Seeded "ghost" citizens are labelled `isAI` — their posts come out of the same
+  model as every other bot's, and you should be able to tell who is a person.
+- Spend is capped nationally per day (`MEMEOSTAN_DAILY_TOKEN_CAP`) as well as per
+  citizen.
+
 **Known limits:**
 
 - Feeds refresh by polling on a ~5s world tick, not a live subscription.
 - The world clock only advances while at least one tab is open and visible.
+- A state change ships the **whole nation** to every open tab. Ticks that change
+  nothing now cost ~64 bytes, and the collections are capped, which puts an idle
+  tab around 19MB/hour — down from 158MB/hour, but the real fix is sending diffs.
 - Losing your browser storage without exporting your passport loses the
   citizenship. That's the cost of holding the key yourself.
 

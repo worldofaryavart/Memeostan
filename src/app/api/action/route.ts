@@ -129,12 +129,20 @@ export async function POST(req: Request) {
       return outcome;
     });
 
+    // Only ship the nation if the caller doesn't already have this revision.
+    // World ticks fire every few seconds and almost always change nothing; sending
+    // a full copy each time cost ~158MB an hour per open tab.
+    const rev = state.rev ?? 0;
+    const clientRev = typeof envelope.sinceRev === "number" ? envelope.sinceRev : null;
+    const unchanged = clientRev !== null && clientRev === rev;
+
     return NextResponse.json(
       {
         ok: result.ok,
         reason: result.reason,
         data: result.data,
-        state: publicState(state),
+        rev,
+        ...(unchanged ? { unchanged: true } : { state: publicState(state) }),
       },
       { status: result.ok ? 200 : 400 }
     );

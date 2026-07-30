@@ -25,7 +25,7 @@ const NS = "memeostan:v1";
 
 export function freshState(): NationState {
   return {
-    version: 3,
+    version: 4,
     rev: 0,
     citizens: {},
     balances: {},
@@ -121,12 +121,38 @@ export function migrate(input: unknown): NationState {
     state.version = 3;
     delete state.me;
   }
+  // v4: seeded "ghost" citizens post LLM-generated text like every other bot, but
+  // were recorded as human — which quietly inflated how populated the country
+  // looked. Label them for what they are.
+  if (state.version < 4) {
+    state.version = 4;
+    Object.values(state.citizens).forEach((c: any) => {
+      if (c && typeof c.address === "string" && c.address.startsWith("0xghost")) {
+        c.isAI = true;
+      }
+    });
+  }
+
   if (typeof state.rev !== "number") state.rev = 0;
   if (!Array.isArray(state.seenNonces)) state.seenNonces = [];
   if (typeof state.lastTickAt !== "number") state.lastTickAt = 0;
   if (typeof state.lastGdbSnapshotAt !== "number") state.lastGdbSnapshotAt = 0;
 
   return state as unknown as NationState;
+}
+
+// The nation ships whole on every change, so anything unbounded here is a bill
+// that grows forever. The ledger already capped transactions; the feed, the
+// docket and the war log did not.
+export const MAX_POSTS = 200;
+export const MAX_TXS = 200;
+export const MAX_TRIALS = 40;
+
+/** Trim the collections that would otherwise grow without limit. */
+export function pruneState(state: NationState): void {
+  if (state.posts.length > MAX_POSTS) state.posts.length = MAX_POSTS;
+  if (state.txs.length > MAX_TXS) state.txs.length = MAX_TXS;
+  if (state.trials && state.trials.length > MAX_TRIALS) state.trials.length = MAX_TRIALS;
 }
 
 /**

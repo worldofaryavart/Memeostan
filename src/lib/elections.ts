@@ -81,10 +81,11 @@ export const elections = {
     return { ok: true, postId };
   },
 
-  resolveElection(): void {
+  /** Returns true if an election actually closed, so callers know state changed. */
+  resolveElection(): boolean {
     const now = Date.now();
     const s = db.get();
-    if (!s.activeElection || now < s.activeElection.endsAt) return;
+    if (!s.activeElection || now < s.activeElection.endsAt) return false;
 
     db.update((state) => {
       const election = state.activeElection;
@@ -208,5 +209,7 @@ export const elections = {
         endsAt: Date.now() + ELECTION_DURATION,
       };
     });
+
+    return true;
   },
 };

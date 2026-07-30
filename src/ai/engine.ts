@@ -9,7 +9,7 @@
 
 "use client";
 
-import { applyServerState } from "@/lib/db";
+import { applyServerState, db } from "@/lib/db";
 import type { NationState } from "@/lib/types";
 
 type Notify = () => void;
@@ -26,6 +26,11 @@ function adopt(state: NationState | undefined, onUpdate: Notify): void {
   if (state && applyServerState(state)) onUpdate();
 }
 
+/** The revision we already hold, so the server can skip re-sending it. */
+function sinceRev(): number {
+  return db.get().rev ?? 0;
+}
+
 /**
  * Ask an AI citizen to react to a specific post. The server picks who replies (or
  * honours `candidateAddress`), generates it, and records it — the reply text never
@@ -39,7 +44,7 @@ export function requestAIReply(
   fetch("/api/ai/reply", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ postId, candidateAddress }),
+    body: JSON.stringify({ postId, candidateAddress, sinceRev: sinceRev() }),
   })
     .then((res) => res.json())
     .then((data: BeatResponse) => adopt(data.state, onUpdate))
@@ -68,7 +73,11 @@ export function startCampaignLoop(onUpdate: Notify, intervalMs = 30000): number 
   const beat = () => {
     if (document.visibilityState !== "visible") return;
 
-    fetch("/api/ai/beat", { method: "POST" })
+    fetch("/api/ai/beat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sinceRev: sinceRev() }),
+    })
       .then((res) => res.json())
       .then((data: BeatResponse) => {
         if (data.skipped) return;
