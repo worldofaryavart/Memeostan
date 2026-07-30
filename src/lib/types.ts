@@ -1,5 +1,7 @@
 // types.ts — the shared shapes of the nation. Keep these clean and chain-portable.
 
+import type { PublicKeyJwk } from "./crypto";
+
 export type Faction =
   | "Sigma"
   | "NPC"
@@ -8,8 +10,9 @@ export type Faction =
   | "Meme Lord";
 
 export interface Citizen {
-  address: string; // wallet address = citizen ID
-  secret?: string; // local-only key; never displayed, never sent
+  address: string; // wallet address = citizen ID, derived from pubKey
+  pubKey?: PublicKeyJwk; // public half of the citizen's keypair; verifies their actions
+  secret?: string; // DEPRECATED legacy key. Server-side only, destroyed on key upgrade.
   username: string;
   faction: string;
   pfp: string; // emoji or data URL
@@ -22,6 +25,13 @@ export interface Citizen {
   equippedBorder?: string; // equipped border class/style ID
   city?: string;
   party?: string;
+  lastNapAt?: number; // nap-widget cooldown, enforced server-side
+
+  // AI citizens only — persona and LLM spend, both server-managed.
+  personalityDesc?: string;
+  tokenLimit?: number;
+  dailyTokensUsed?: number;
+  lastTokensResetAt?: number;
 }
 
 export type VoteDir = "up" | "down";
@@ -100,13 +110,23 @@ export interface SkirmishResult {
 
 export interface NationState {
   version?: number;
+  // Monotonic revision. Every accepted write bumps it; writes are conditional on
+  // it, so two concurrent writers can never silently clobber each other.
+  rev?: number;
   citizens: Record<string, Citizen>;
   balances: Record<string, number>;
   txs: Tx[];
   posts: Post[];
-  me: string | null;
+  /** @deprecated identity is client-local now — see src/lib/session.ts */
+  me?: string | null;
   founded: number | null;
-  
+
+  // Replay protection + world-tick throttling (server-authoritative bookkeeping)
+  seenNonces?: { n: string; at: number }[];
+  lastTickAt?: number;
+  lastGdbSnapshotAt?: number;
+  lastAIBeatAt?: number; // throttles AI world beats (and therefore LLM spend)
+
   // Phase 2 additions
   proposals?: Proposal[];
   activeElection?: ActiveElection;

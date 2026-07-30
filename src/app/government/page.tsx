@@ -6,6 +6,8 @@ import { me, allCitizens, getCitizen } from "@/lib/citizens";
 import { governance } from "@/lib/governance";
 import { elections } from "@/lib/elections";
 import { ledger } from "@/lib/ledger";
+import { act, newActionId } from "@/lib/actionClient";
+import { BRIBE_COST } from "@/lib/lobbying";
 import type { Proposal, Citizen } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
@@ -84,15 +86,21 @@ export default function GovernmentPage() {
       return;
     }
     
-    const res = governance.createProposal(citizen.address, propTitle.trim(), propDesc.trim());
+    const proposalId = newActionId("prop");
+    const postId = newActionId("post");
+    const res = act("proposal.create", {
+      proposalId,
+      postId,
+      title: propTitle.trim(),
+      description: propDesc.trim(),
+    });
+
     if (res.ok) {
       setPropTitle("");
       setPropDesc("");
       setPropError(null);
       refresh();
-      if (res.postId) {
-        onSystemPost(res.postId, "referendum", refresh);
-      }
+      onSystemPost(postId, "referendum", refresh);
     } else {
       setPropError(res.reason || "Failed to file proposal");
     }
@@ -100,7 +108,7 @@ export default function GovernmentPage() {
 
   const handleVoteProposal = (proposalId: string, type: "yes" | "no") => {
     if (!citizen) return;
-    governance.vote(proposalId, citizen.address, type);
+    act("proposal.vote", { proposalId, vote: type });
     refresh();
   };
 
@@ -119,92 +127,65 @@ export default function GovernmentPage() {
     setLobbyInputText("");
 
     setTimeout(() => {
-      if (bribeEnabled) {
-        // --- BRIBE FLOW ---
-        const userBalance = ledger.balanceOf(citizen.address);
-        if (userBalance < 50) {
-          const failMsg = {
-            sender: "minister" as const,
-            text: getBribeFailMessage(lobbyingMinister.address),
-            at: Date.now()
-          };
-          setChatHistory((prev) => [...prev, failMsg]);
-          return;
-        }
+      // The server rules on the bribe or the argument; we only narrate the outcome.
+      const res = bribeEnabled
+        ? act("minister.bribe", {
+            proposalId: lobbyingProposal.id,
+            ministerAddress: lobbyingMinister.address,
+          })
+        : act("minister.persuade", {
+            proposalId: lobbyingProposal.id,
+            ministerAddress: lobbyingMinister.address,
+            message: userText,
+          });
 
-        // Execute transfer of 50 MMC to the minister
-        const res = ledger.transfer(
-          citizen.address,
-          lobbyingMinister.address,
-          50,
-          `bribe to change vote on proposal ${lobbyingProposal.id}`
-        );
-
-        if (res.ok) {
-          // Cast vote change
-          governance.vote(lobbyingProposal.id, lobbyingMinister.address, newVote);
-          
-          const systemMsg = {
-            sender: "system" as const,
-            text: `💸 Transferred 50 MMC bribe to @${lobbyingMinister.username}`,
-            at: Date.now()
-          };
-          const successMsg = {
-            sender: "minister" as const,
-            text: getBribeSuccessMessage(lobbyingMinister.address, newVote),
-            at: Date.now()
-          };
-          setChatHistory((prev) => [...prev, systemMsg, successMsg]);
-          setBribeEnabled(false); // disable bribe checkbox after successful bribe
-          
-          // Re-fetch proposal to update local state in modal
-          const updatedProp = governance.getProposal(lobbyingProposal.id);
-          if (updatedProp) {
-            setLobbyingProposal(updatedProp);
-          }
-          refresh(); // reload page-level statistics
-        } else {
-          const failMsg = {
-            sender: "minister" as const,
-            text: `Bribe transfer failed: ${res.reason || "unknown error"}. My vote stays ${currentVote.toUpperCase()}.`,
-            at: Date.now()
-          };
-          setChatHistory((prev) => [...prev, failMsg]);
-        }
-      } else {
-        // --- PERSUASION FLOW ---
-        const persuaded = checkPersuasionKeywords(lobbyingMinister.address, userText);
-        if (persuaded) {
-          governance.vote(lobbyingProposal.id, lobbyingMinister.address, newVote);
-          
-          const successMsg = {
-            sender: "minister" as const,
-            text: getPersuadeSuccessMessage(lobbyingMinister.address, newVote),
-            at: Date.now()
-          };
-          setChatHistory((prev) => [...prev, successMsg]);
-          
-          // Re-fetch proposal
-          const updatedProp = governance.getProposal(lobbyingProposal.id);
-          if (updatedProp) {
-            setLobbyingProposal(updatedProp);
-          }
-          refresh();
-        } else {
-          const failMsg = {
-            sender: "minister" as const,
-            text: getPersuadeFailMessage(lobbyingMinister.address),
-            at: Date.now()
-          };
-          setChatHistory((prev) => [...prev, failMsg]);
-        }
+      if (!res.ok) {
+        const text = bribeEnabled
+          ? getBribeFailMessage(lobbyingMinister.address)
+          : res.reason === "not-persuaded"
+            ? getPersuadeFailMessage(lobbyingMinister.address)
+            : `${res.reason} My vote stays ${currentVote.toUpperCase()}.`;
+        setChatHistory((prev) => [...prev, { sender: "minister" as const, text, at: Date.now() }]);
+        return;
       }
-    }, 600); // add a slight AI "thinking" delay
+
+      const flipped = (res.data?.newVote as "yes" | "no") ?? newVote;
+
+      if (bribeEnabled) {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            sender: "system" as const,
+            text: `💸 Transferred ${BRIBE_COST} MMC bribe to @${lobbyingMinister.username}`,
+            at: Date.now(),
+          },
+          {
+            sender: "minister" as const,
+            text: getBribeSuccessMessage(lobbyingMinister.address, flipped),
+            at: Date.now(),
+          },
+        ]);
+        setBribeEnabled(false); // one bribe per conversation
+      } else {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            sender: "minister" as const,
+            text: getPersuadeSuccessMessage(lobbyingMinister.address, flipped),
+            at: Date.now(),
+          },
+        ]);
+      }
+
+      const updatedProp = governance.getProposal(lobbyingProposal.id);
+      if (updatedProp) setLobbyingProposal(updatedProp);
+      refresh();
+    }, 600); // a slight AI "thinking" delay
   };
 
   const handleVoteElection = (candidateAddr: string) => {
     if (!citizen) return;
-    const res = elections.vote(citizen.address, candidateAddr);
+    const res = act("election.vote", { candidate: candidateAddr });
     if (res.ok) {
       refresh();
     } else {
@@ -214,13 +195,12 @@ export default function GovernmentPage() {
 
   const handleDeclareCandidacy = () => {
     if (!citizen) return;
-    const res = elections.declareCandidacy(citizen.address);
+    const postId = newActionId("post");
+    const res = act("election.declareCandidacy", { postId });
     if (res.ok) {
       alert("🎉 Candidacy declared successfully! You are now on the ballot.");
       refresh();
-      if (res.postId) {
-        onSystemPost(res.postId, "candidacy", refresh);
-      }
+      onSystemPost(postId, "candidacy", refresh);
     } else {
       alert(res.reason || "Failed to declare candidacy");
     }

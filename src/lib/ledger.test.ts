@@ -5,7 +5,7 @@ import { ledger } from "./ledger";
 const A = "0xcitizenA00000000000000000000000000000a";
 const B = "0xcitizenB00000000000000000000000000000b";
 
-beforeEach(() => db.reset());
+beforeEach(() => db.clearLocal());
 
 describe("ledger.mint", () => {
   it("credits the wallet and records a tx", () => {

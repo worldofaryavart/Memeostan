@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { me, adjustAura } from "@/lib/citizens";
+import { me } from "@/lib/citizens";
+import { act } from "@/lib/actionClient";
 
 /* Pure nonsense filler blocks. No function. Maximum chaos. (peak3/4/5) */
 
@@ -253,7 +254,7 @@ export function QuickNap() {
         if (prev <= 1) {
           clearInterval(timer);
           setIsNapping(false);
-          adjustAura(citizen.address, 10);
+          act("nap.complete");
           setAuraEarned(true);
           if (typeof window !== "undefined") {
             window.dispatchEvent(new Event("nation-update"));

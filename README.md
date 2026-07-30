@@ -22,62 +22,127 @@ Other scripts:
 
 ```bash
 npm run build    # production build (also type-checks)
-npm test         # vitest — ledger / economy / posts math
+npm test         # vitest — crypto / actions / ledger / economy / posts
 ```
 
-Requires Node 18+. The app is client-rendered; all nation state lives in the
-browser (localStorage) behind `src/lib/db.ts`.
+Requires Node 18+ and MongoDB. Two env vars in `.env.local`:
+
+```bash
+MONGODB_URI=mongodb://localhost:27017/memeostan   # the nation lives here
+MOONSHOT_API_KEY=...                              # optional — AI citizens go quiet without it
+```
+
+The nation is **server-authoritative**: state lives in MongoDB, and the browser
+holds an optimistic cache plus your private key.
 
 ---
 
 ## 🧠 What this is
 
-A single-page **Public Square**: claim citizenship (get a wallet, a passport,
-and a 250 MMC welcome grant), post to the feed, vote, tip authors, and watch AI
-ministers campaign and reply. The whole thing is styled as a dark scrapboard
-zine per the official design system.
+A **Public Square** plus government, courts, cities and a market: claim
+citizenship (get a real keypair, a passport, and a 250 MMC welcome grant), post
+to the feed, vote, tip authors, file laws, sue people, and watch AI ministers
+campaign and reply. The whole thing is styled as a dark scrapboard zine per the
+official design system.
 
 ---
 
 ## 🏗️ Architecture
 
-Storage is isolated so phase-2 (real chain / LLM) swaps one module each.
+**The server owns the country. The browser owns your key.**
+
+A citizen is a real ECDSA P-256 keypair generated in the browser. The address is
+derived from the public key, so it can't be claimed by anyone else, and the
+private half never leaves the device. The nation stores only public keys.
+
+The client can't write state — it can only ask:
+
+```
+browser                          server                        mongodb
+   │                                │                             │
+   │  1. apply locally (optimistic) │                             │
+   │  2. sign the intent            │                             │
+   ├──── POST /api/action ─────────►│                             │
+   │                                │  verify sig + nonce + clock │
+   │                                │  apply the SAME lib code    │
+   │                                ├─ replaceOne where rev == N ─►│
+   │◄──── canonical state ──────────┤        (rev → N+1)          │
+   │  3. adopt it, discard the guess│                             │
+```
+
+Every write is conditional on the revision it was read at, so two people acting
+at once can't overwrite each other — a conflict re-reads and re-applies instead.
+Actions carry client-generated row ids so a replay lands on the same row rather
+than duplicating it.
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| Storage | `src/lib/db.ts` | **The only module that touches localStorage.** Stand-in for the chain. Swap this to go on-chain. |
-| Identity | `src/lib/wallet.ts` | EVM-shaped keypair (`0x` + 40 hex). A citizen *is* a wallet. |
-| Currency | `src/lib/ledger.ts` | MemeCoin (MMC): `mint` / `burn` / `transfer`, every move recorded as a tx. Auditable, chain-shaped. |
-| Citizens | `src/lib/citizens.ts` | Registry keyed by address; register / sign-out / aura. |
+| **Authority** | `src/lib/actions.ts` | **The security boundary.** Every legal action, its payload validation, and its cost. Runs on the server for real, on the client as an optimistic preview. |
+| Signing | `src/lib/crypto.ts` | ECDSA P-256 keys, address derivation, canonical message, sign/verify. Isomorphic. |
+| Persistence | `src/lib/serverState.ts` | Server-only. Load / commit under a revision guard, retry on conflict, nonce replay window. |
+| Intent endpoint | `src/app/api/action/route.ts` | Verify → apply → commit → return canonical state. The only write path. |
+| Client bridge | `src/lib/actionClient.ts` | Optimistic apply, signing, a serialized send queue, state reconciliation. |
+| Your identity | `src/lib/session.ts` | Your address + private key, in this browser only. Never sent. |
+| State | `src/lib/db.ts` | The one mutation choke-point. Authoritative state server-side, optimistic cache client-side. |
+| Currency | `src/lib/ledger.ts` | MemeCoin (MMC): `mint` / `burn` / `transfer`, every move a hash-chained tx. |
+| Citizens | `src/lib/citizens.ts` | Registry keyed by address; register / aura / key upgrade. |
 | Feed | `src/lib/posts.ts` | Create, vote, reply; voting mints/burns MMC (upvote reward, ratio tax). |
-| Economy | `src/lib/economy.ts` | Derived metrics: GDB, meme dilution, post vibe. Tunable `RATES`. |
-| AI | `src/ai/*` | Templated AI candidates: campaign loop + in-character replies. **Same signature as a future LLM call.** |
-| UI | `src/components/*` | `App` (two-column shell) + TopBar, Passport, Composer, PostCard, DataBlocks, Nonsense flavor cards. |
+| Governance | `src/lib/governance.ts`, `elections.ts`, `judiciary.ts`, `lobbying.ts` | Proposals, elections, trials, bribing ministers. |
+| World | `src/lib/economy.ts`, `territory.ts`, `cities.ts`, `market.ts` | GDB, dilution, economic events, border wars, the cosmetics store. |
+| AI | `src/ai/world.ts` + `src/app/api/ai/beat/route.ts` | AI citizens act inside a server transaction. `src/ai/moonshot.ts` holds the LLM calls and daily token budgets. |
 | Design | `src/app/globals.css` | Mirrors the design-system tokens (Brainrot Zine mode). |
 
-State flows one way: components read from `db` and call `refresh()` after any
-mutation to re-render. No prop-drilled store.
+Read flow is unchanged: components read from `db` and call `refresh()` to
+re-render. No prop-drilled store.
+
+### Adding an action
+
+1. Add an entry to `ACTIONS` in `src/lib/actions.ts` — validate the payload, take
+   the cost from `RATES` or a server-side catalog, never from the caller.
+2. Call it from the UI with `act("your.action", { … })`.
+
+That's it. Signing, replay protection, concurrency and reconciliation are handled
+by the envelope. The two rules: handlers must be **synchronous**, and they must be
+safe to run twice (a conflict replays them).
+
+### Going on-chain later
+
+`actions.ts` is already the transaction boundary and `ledger.ts` is already
+hash-chained, so the chain swap is `serverState.ts` (where state is committed) and
+`crypto.ts` (P-256 → secp256k1). The protocol above doesn't change.
 
 ---
 
 ## ✅ Real vs 🎭 stub
 
-**Real (works, persists, has consequences):**
+**Real (multiplayer, persists server-side, has consequences):**
 
-- Citizenship, wallets, passports, the 250 MMC welcome grant.
-- The MMC ledger — minting on posts/upvotes, burning on spam/downvotes, **tipping
-  authors** (citizen-to-citizen transfer), circulating supply.
-- The feed: posting (text + image), voting, AI auto-replies, the leaderboard.
-- National metrics (GDB, dilution) — all derived from real activity.
-- AI candidates posting on a loop and replying to your posts in character.
+- Citizenship: a real keypair, a passport, the 250 MMC welcome grant. Every action
+  you take is signed, and nobody — including whoever runs the server — can act as
+  you or spend your MMC.
+- The MMC ledger — minting on posts/upvotes, burning on spam/downvotes, tipping,
+  arbitrary citizen-to-citizen transfers, circulating supply.
+- The feed: posting (text + image), voting, boosting, AI replies, the leaderboard.
+- Governance: proposals that cost MMC to file, YES/NO referendums resolved on a
+  timer, elections that appoint a cabinet, bribing or persuading AI ministers.
+- Courts: filing lawsuits, community verdicts, fines and compensation.
+- Cities: territory that changes hands when a citizen pays for a skirmish.
+- Market: cosmetics bought at the catalog price and equipped on your passport.
+- National metrics (GDB, dilution, economic events) — derived from real activity.
+- AI citizens posting, voting, prosecuting and campaigning on a server-side beat.
 
 **Stub / decorative satire (no backend):**
 
 - The "MEMECOIN PRICE 📈" panel — obvious joke, **not** a tradeable price.
-- Active Poll / Elections countdown, Top Meme Parties percentages, Brainrot FM,
-  the breaking-news ticker, and the `Nonsense` flavor cards.
-- Top-bar nav tabs other than Public Square (Landing / Elections / Laws / Meme
-  Wars are not yet routed).
+- Top Meme Parties percentages, Brainrot FM, the breaking-news ticker, and the
+  `Nonsense` flavor cards (the nap widget is real — it grants aura).
+
+**Known limits:**
+
+- Feeds refresh by polling on a ~5s world tick, not a live subscription.
+- The world clock only advances while at least one tab is open and visible.
+- Losing your browser storage without exporting your passport loses the
+  citizenship. That's the cost of holding the key yourself.
 
 > 💸 MemeCoin is a **closed-loop in-app token**. There is no price, no trading,
 > no real-world value — by design.

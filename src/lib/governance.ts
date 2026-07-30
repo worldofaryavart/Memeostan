@@ -21,7 +21,10 @@ export const governance = {
   createProposal(
     creator: string,
     title: string,
-    description: string
+    description: string,
+    // Caller-supplied so the client's optimistic copy and the server's committed
+    // copy share ids. See the note in posts.ts.
+    ids: { proposalId?: string; postId?: string } = {}
   ): { ok: boolean; reason?: string; proposal?: Proposal; postId?: string } {
     const citizen = getCitizen(creator);
     if (!citizen) return { ok: false, reason: "Citizen not registered" };
@@ -39,7 +42,7 @@ export const governance = {
     adjustAura(creator, 20); // filing shows leadership
 
     const proposal: Proposal = {
-      id: "prop_" + Math.random().toString(36).slice(2, 10),
+      id: ids.proposalId || "prop_" + Math.random().toString(36).slice(2, 10),
       creator,
       title,
       description,
@@ -52,13 +55,15 @@ export const governance = {
 
     db.update((s) => {
       if (!s.proposals) s.proposals = [];
+      if (s.proposals.some((p) => p.id === proposal.id)) return; // idempotent on retry
       s.proposals.unshift(proposal);
     });
 
     // Post referendum alert to the feed
     const postId = createSystemPost(
       "0xai_constitutionalcourt0000000000court",
-      `📜 REFERENDUM ALERT: @${citizen.username} has proposed a new law: "${title}"!\n\n"${description}"\n\nGo vote YES/NO in the High Chambers! 🗳️`
+      `📜 REFERENDUM ALERT: @${citizen.username} has proposed a new law: "${title}"!\n\n"${description}"\n\nGo vote YES/NO in the High Chambers! 🗳️`,
+      ids.postId
     );
 
     return { ok: true, proposal, postId };

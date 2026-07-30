@@ -30,7 +30,8 @@ export function fileCharge(
   defendant: string,
   charge: string,
   description: string,
-  durationMs: number = 120000 // 2 minutes default for snappy testing
+  durationMs: number = 120000, // 2 minutes default for snappy testing
+  ids: { trialId?: string; postId?: string } = {}
 ): { ok: boolean; reason?: string; trialId?: string } {
   // Ensure court AI exists
   ensureSupremeCourtAI();
@@ -58,7 +59,7 @@ export function fileCharge(
     ledger.burn(plaintiff, 30, `lawsuit filing fee — court cost ⚖️`);
   }
 
-  const trialId = "trial_" + Math.random().toString(36).slice(2, 10);
+  const trialId = ids.trialId || "trial_" + Math.random().toString(36).slice(2, 10);
   
   // Format the post announcement
   const defName = def.username;
@@ -74,6 +75,7 @@ export function fileCharge(
   const post = createPost({
     author: SUPREME_COURT_ADDRESS,
     text: announcementText,
+    id: ids.postId,
   });
 
   const trial: Trial = {
@@ -94,6 +96,7 @@ export function fileCharge(
 
   db.update((s) => {
     if (!s.trials) s.trials = [];
+    if (s.trials.some((t) => t.id === trialId)) return; // idempotent on retry
     s.trials.unshift(trial);
   });
 

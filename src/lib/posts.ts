@@ -21,6 +21,12 @@ interface NewPost {
   author: string;
   text?: string;
   image?: string | null;
+  /**
+   * Caller-supplied id. The client generates it so its optimistic copy of a post
+   * has the same id as the one the server commits — otherwise reconciling would
+   * make the post jump. Server-side actions pass the id from the signed payload.
+   */
+  id?: string;
 }
 
 function runCyberPoliceAudit(post: Post): void {
@@ -67,9 +73,9 @@ function runCyberPoliceAudit(post: Post): void {
   }
 }
 
-export function createPost({ author, text, image }: NewPost): Post {
+export function createPost({ author, text, image, id }: NewPost): Post {
   const post: Post = {
-    id: newId(),
+    id: id || newId(),
     author,
     text: text || "",
     image: image || null,
@@ -79,7 +85,10 @@ export function createPost({ author, text, image }: NewPost): Post {
     replies: [],
     at: Date.now(),
   };
-  db.update((s) => s.posts.unshift(post));
+  db.update((s) => {
+    if (s.posts.some((p) => p.id === post.id)) return; // idempotent on retry
+    s.posts.unshift(post);
+  });
 
   // Fetch city rules for this author
   const authorCitizen = getCitizen(author);

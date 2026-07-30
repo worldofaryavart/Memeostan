@@ -18,7 +18,7 @@ function post(over: Partial<Post> = {}): Post {
   };
 }
 
-beforeEach(() => db.reset());
+beforeEach(() => db.clearLocal());
 
 describe("vibeOf", () => {
   it("rewards upvotes (2x) and punishes downvotes (3x)", () => {

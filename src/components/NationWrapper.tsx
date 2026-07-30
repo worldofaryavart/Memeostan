@@ -1,59 +1,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { bootNation } from "@/data/seed";
 import { startCampaignLoop } from "@/ai/engine";
-import { recordGdbSnapshot } from "@/lib/economy";
-import { elections } from "@/lib/elections";
-import { governance } from "@/lib/governance";
 import { loadStateFromServer } from "@/lib/db";
+import { requestWorldTick, upgradeLegacyKeyIfNeeded } from "@/lib/actionClient";
+import { adoptLegacySession } from "@/lib/session";
+
+// How often we ask the server to advance the world and hand back fresh state.
+// The server collapses ticks that arrive too close together, so more open tabs
+// does not mean more elections resolving.
+const TICK_MS = 5000;
 
 export default function NationWrapper({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let tick = 0;
+    let campaign = 0;
+
     try {
-      // 1. Check for query parameter reset override
-      if (typeof window !== "undefined") {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get("reset") === "true") {
-          window.localStorage.clear();
-          // Remove '?reset=true' from the URL bar without reloading
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, newUrl);
-        }
+      // 1. `?reset=true` clears this browser only. The nation on the server is not
+      //    ours to wipe from a query string any more.
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("reset") === "true") {
+        window.localStorage.clear();
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
 
-      // 2. Load state asynchronously from MongoDB server database
-      loadStateFromServer().then(() => {
-        // 3. Boot/seed the nation
-        bootNation();
-        setReady(true);
-      });
+      // 2. Recover identity from this browser, then load the nation from the server.
+      //    Seeding now happens server-side on first read, so there is no bootNation()
+      //    call here — a client can't invent citizens.
+      adoptLegacySession();
 
-      // 4. Start the AI campaign loop (which posts, replies, and votes periodically every 30s)
-      const campaign = startCampaignLoop(() => {
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("nation-update"));
-        }
+      loadStateFromServer()
+        .then(() => upgradeLegacyKeyIfNeeded())
+        .catch((err) => console.error("Boot sequence problem:", err))
+        .finally(() => setReady(true));
+
+      // 3. AI chatter. The posts themselves are written server-side by /api/ai/*.
+      campaign = startCampaignLoop(() => {
+        window.dispatchEvent(new Event("nation-update"));
       }, 30000);
 
-      // 3. Start the national database state clock
-      const tick = window.setInterval(() => {
-        // Periodic state snapshots and resolution steps
-        try {
-          recordGdbSnapshot();
-          elections.resolveElection();
-          governance.resolveExpired();
-          
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new Event("nation-update"));
-          }
-        } catch (err: any) {
-          console.error("Error during nation state tick:", err);
-        }
-      }, 4000);
+      // 4. The world clock. Resolution logic lives on the server; this only asks it
+      //    to run, and only while the tab is actually being looked at.
+      tick = window.setInterval(() => {
+        if (document.visibilityState === "visible") requestWorldTick();
+      }, TICK_MS);
 
       return () => {
         window.clearInterval(campaign);
@@ -62,6 +56,8 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
     } catch (err: any) {
       console.error("Boot error:", err);
       setError(err.message || String(err));
+      window.clearInterval(campaign);
+      window.clearInterval(tick);
     }
   }, []);
 

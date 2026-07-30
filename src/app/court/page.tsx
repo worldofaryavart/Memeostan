@@ -3,12 +3,8 @@
 import { useState, useEffect } from "react";
 import { useNation } from "@/components/useNation";
 import { me, allCitizens, getCitizen } from "@/lib/citizens";
-import {
-  getActiveTrials,
-  getResolvedTrials,
-  fileCharge,
-  voteOnTrial,
-} from "@/lib/judiciary";
+import { getActiveTrials, getResolvedTrials } from "@/lib/judiciary";
+import { act, newActionId } from "@/lib/actionClient";
 import { ledger } from "@/lib/ledger";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
@@ -63,7 +59,13 @@ export default function CourtPage() {
       return;
     }
 
-    const res = fileCharge(citizen.address, defendant, finalCharge, description.trim());
+    const res = act("trial.file", {
+      trialId: newActionId("trial"),
+      postId: newActionId("post"),
+      defendant,
+      charge: finalCharge,
+      description: description.trim(),
+    });
     if (res.ok) {
       setDefendant("");
       setDescription("");
@@ -79,7 +81,7 @@ export default function CourtPage() {
 
   const handleVote = (trialId: string, voteType: "guilty" | "innocent") => {
     if (!citizen) return;
-    const res = voteOnTrial(trialId, citizen.address, voteType);
+    const res = act("trial.vote", { trialId, vote: voteType });
     if (res.ok) {
       refresh();
     } else {

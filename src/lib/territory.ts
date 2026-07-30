@@ -89,7 +89,8 @@ export interface SkirmishOutcome {
 export function launchSkirmish(
   attackerCity: string,
   defenderCity: string,
-  initiatorAddress?: string
+  initiatorAddress?: string,
+  skirmishId?: string
 ): SkirmishOutcome {
   if (attackerCity === defenderCity) {
     return {
@@ -122,7 +123,7 @@ export function launchSkirmish(
   const loser  = attackerWins ? defenderCity : attackerCity;
 
   const result: SkirmishResult = {
-    id: makeId(),
+    id: skirmishId || makeId(),
     at: Date.now(),
     attackerCity,
     defenderCity,

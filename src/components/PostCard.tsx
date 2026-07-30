@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { getCitizen, me } from "@/lib/citizens";
-import { vote, boostPost } from "@/lib/posts";
+import { act } from "@/lib/actionClient";
 import { ledger } from "@/lib/ledger";
-import { vibeOf } from "@/lib/economy";
+import { RATES, vibeOf } from "@/lib/economy";
 import type { Post } from "@/lib/types";
 
 function timeAgo(at: number): string {
@@ -19,7 +19,7 @@ function compact(n: number): string {
   return String(n);
 }
 
-const TIP = 10; // MMC sent to an author when you "meme it"
+const TIP = RATES.TIP; // MMC sent to an author when you "meme it" — priced server-side
 
 // ~30% of cards tilt so the feed reads as a wall, not a grid.
 function tiltOf(id: string): string {
@@ -65,27 +65,25 @@ export default function PostCard({ post, refresh }: { post: Post; refresh: () =>
 
   const cast = (dir: "up" | "down") => {
     if (!viewer) return;
-    vote(post.id, viewer.address, dir);
+    act("post.vote", { postId: post.id, dir });
     refresh();
   };
 
   const canTip = !!viewer && viewer.address !== post.author && ledger.balanceOf(viewer.address) >= TIP;
   const tip = () => {
     if (!viewer) return;
-    const res = ledger.transfer(viewer.address, post.author, TIP, `tipped @${author?.username ?? "citizen"}`);
+    const res = act("post.tip", { postId: post.id });
     if (res.ok) {
       setTipped(true);
       refresh();
     }
   };
 
-  const canBoost = !!viewer && ledger.balanceOf(viewer.address) >= 50;
+  const canBoost = !!viewer && ledger.balanceOf(viewer.address) >= RATES.BOOST_COST;
   const handleBoost = () => {
     if (!viewer) return;
-    const res = boostPost(post.id, viewer.address);
-    if (res.ok) {
-      refresh();
-    }
+    const res = act("post.boost", { postId: post.id });
+    if (res.ok) refresh();
   };
 
   return (

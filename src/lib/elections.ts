@@ -42,7 +42,10 @@ export const elections = {
     return { ok: true };
   },
 
-  declareCandidacy(address: string): { ok: boolean; reason?: string; postId?: string } {
+  declareCandidacy(
+    address: string,
+    announcementId?: string
+  ): { ok: boolean; reason?: string; postId?: string } {
     const citizen = getCitizen(address);
     if (!citizen) return { ok: false, reason: "Citizen not registered" };
 
@@ -71,7 +74,8 @@ export const elections = {
     // Post campaign announcement to the feed
     const postId = createSystemPost(
       "0xai_electioncommission000000000000election",
-      `🗳️ CAMPAIGN UPDATE: @${citizen.username} has officially entered the race for the Cabinet! Support their campaign in the Election Booth! 🏛️`
+      `🗳️ CAMPAIGN UPDATE: @${citizen.username} has officially entered the race for the Cabinet! Support their campaign in the Election Booth! 🏛️`,
+      announcementId
     );
 
     return { ok: true, postId };

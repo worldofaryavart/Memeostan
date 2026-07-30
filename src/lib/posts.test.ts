@@ -8,7 +8,7 @@ const AUTHOR = "0xauthor00000000000000000000000000000aaa";
 const VOTER = "0xvoter000000000000000000000000000000bbb";
 
 beforeEach(() => {
-  db.reset();
+  db.clearLocal();
   db.update((s) => {
     s.citizens[AUTHOR] = {
       address: AUTHOR, username: "author", faction: "Sigma", pfp: "🗿",

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createPost } from "@/lib/posts";
 import { me } from "@/lib/citizens";
+import { act, newActionId } from "@/lib/actionClient";
 import { onUserPost } from "@/ai/engine";
 
 const MAX = 280;
@@ -28,14 +28,24 @@ export default function Composer({ refresh }: { refresh: () => void }) {
 
   const post = () => {
     if (!canPost || !viewer) return;
-    const created = createPost({ author: viewer.address, text: text.trim(), image });
+
+    // The id is minted here so the optimistic post and the one the server commits
+    // are the same row.
+    const id = newActionId("post");
+    const res = act("post.create", { id, text: text.trim(), image });
+    if (!res.ok) {
+      setFlash(`🚫 ${res.reason}`);
+      setTimeout(() => setFlash(null), 4000);
+      return;
+    }
+
     setText("");
     setImage(null);
     if (fileRef.current) fileRef.current.value = "";
     setFlash("🚀 posted to the square! bangers mint +50 MMC");
     setTimeout(() => setFlash(null), 3000);
     refresh();
-    onUserPost(created.id, refresh);
+    onUserPost(id, refresh);
   };
 
   return (

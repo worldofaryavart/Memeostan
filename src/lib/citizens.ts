@@ -1,9 +1,14 @@
 // citizens.ts — the citizen registry, keyed by wallet address.
+//
+// These are state mutators: they run on the server inside an action, and on the
+// client as the optimistic preview of that same action. Nothing here talks to the
+// network. "Who am I" is not state — it lives in src/lib/session.ts.
 
 import { db } from "./db";
 import { ledger } from "./ledger";
-import { createKeypair } from "./wallet";
 import { RATES } from "./economy";
+import { clearSession, exportSession, importSession, myAddress } from "./session";
+import type { PublicKeyJwk } from "./crypto";
 import type { Citizen } from "./types";
 
 export const FACTIONS = [
@@ -26,12 +31,15 @@ export function allCitizens(): Citizen[] {
   return Object.values(db.get().citizens);
 }
 
+/** The citizen this browser holds the key for, if they exist in the nation yet. */
 export function me(): Citizen | null {
-  const s = db.get();
-  return s.me ? s.citizens[s.me] || null : null;
+  const address = myAddress();
+  return address ? db.get().citizens[address] || null : null;
 }
 
-interface NewCitizen {
+export interface NewCitizen {
+  address: string;
+  pubKey: PublicKeyJwk;
   username: string;
   faction: string;
   pfp?: string;
@@ -39,13 +47,23 @@ interface NewCitizen {
   party?: string;
 }
 
-// Register a brand-new human citizen: mints a wallet, files the passport,
-// grants the welcome MMC, and signs them in.
-export function registerCitizen({ username, faction, pfp, city, party }: NewCitizen): Citizen {
-  const { address, secret } = createKeypair();
+/**
+ * File a passport for an address that has already proved it holds the matching
+ * key. The keypair itself is minted in the browser (src/lib/actionClient.ts) —
+ * this only records the public half and pays the welcome grant.
+ */
+export function registerCitizen({
+  address,
+  pubKey,
+  username,
+  faction,
+  pfp,
+  city,
+  party,
+}: NewCitizen): Citizen {
   const citizen: Citizen = {
     address,
-    secret,
+    pubKey,
     username,
     faction,
     pfp: pfp || "🫠",
@@ -57,11 +75,25 @@ export function registerCitizen({ username, faction, pfp, city, party }: NewCiti
   };
   db.update((s) => {
     s.citizens[address] = citizen;
-    s.balances[address] = 0;
-    s.me = address;
+    if (s.balances[address] == null) s.balances[address] = 0;
+    if (!s.founded) s.founded = Date.now();
   });
   ledger.mint(address, RATES.WELCOME_GRANT, "welcome grant — citizenship issued");
   return citizen;
+}
+
+/**
+ * One-time migration for citizens minted before signed actions existed: swap the
+ * shared-state `secret` for a real public key and destroy the secret. Authorised
+ * by proving knowledge of that secret (see actions.ts).
+ */
+export function upgradeCitizenKey(address: string, pubKey: PublicKeyJwk): void {
+  db.update((s) => {
+    const citizen = s.citizens[address];
+    if (!citizen) return;
+    citizen.pubKey = pubKey;
+    delete citizen.secret;
+  });
 }
 
 // Ensure an AI candidate exists in the registry (idempotent).
@@ -85,52 +117,23 @@ export function adjustAura(address: string, delta: number): void {
   });
 }
 
+/** Signing out is purely local — it forgets the key, it doesn't renounce anything. */
 export function signOut(): void {
-  db.update((s) => {
-    s.me = null;
-  });
+  clearSession();
 }
 
-export function exportWallet(address: string): string | null {
-  const c = getCitizen(address);
-  if (!c || !c.secret) return null;
-  return JSON.stringify({
-    address: c.address,
-    secret: c.secret,
-    username: c.username,
-    faction: c.faction,
-    pfp: c.pfp,
-    aura: c.aura,
-    joinedAt: c.joinedAt,
-  });
+/**
+ * Back up citizenship: the key material only. The passport, balance and history
+ * stay on the server keyed by address, so a restore is just proving who you are
+ * again — it can no longer conjure a citizen (or a 250 MMC grant) out of a file.
+ */
+export function exportWallet(): string | null {
+  return exportSession();
 }
 
 export function importWallet(backupJson: string): Citizen | null {
-  try {
-    const data = JSON.parse(backupJson.trim());
-    if (!data.address || !data.secret || !data.username || !data.faction) {
-      return null;
-    }
-    const citizen: Citizen = {
-      address: data.address,
-      secret: data.secret,
-      username: data.username,
-      faction: data.faction,
-      pfp: data.pfp || "🫠",
-      aura: data.aura || 1000,
-      isAI: false,
-      joinedAt: data.joinedAt || Date.now(),
-    };
-    db.update((s) => {
-      s.citizens[data.address] = citizen;
-      s.me = data.address;
-      if (s.balances[data.address] == null) {
-        s.balances[data.address] = 250; // default grant
-      }
-    });
-    return citizen;
-  } catch {
-    return null;
-  }
+  const session = importSession(backupJson);
+  if (!session) return null;
+  return getCitizen(session.address);
 }
 

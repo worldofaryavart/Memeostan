@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FACTIONS, registerCitizen, importWallet } from "@/lib/citizens";
+import { FACTIONS, importWallet } from "@/lib/citizens";
+import { claimCitizenship } from "@/lib/actionClient";
 
 const PFPS = ["🫠", "🗿", "🧽", "🐸", "💀", "👽", "🤡", "😎", "🥶", "🐀"];
 
@@ -14,11 +15,20 @@ export default function ClaimBlock({ refresh }: { refresh: () => void }) {
   const [party, setParty] = useState("Global Brainrot Party");
   const [backupInput, setBackupInput] = useState("");
   const [showImport, setShowImport] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
-  const submit = () => {
-    if (!username.trim()) return;
-    registerCitizen({ username: username.trim(), faction, pfp, city, party });
-    refresh();
+  // Claiming mints a real keypair in this browser and files the passport against
+  // the address derived from it, so it has to wait for the nation to confirm.
+  const submit = async () => {
+    if (!username.trim() || claiming) return;
+    setClaiming(true);
+    try {
+      const res = await claimCitizenship({ username: username.trim(), faction, pfp, city, party });
+      if (!res.ok) alert(res.reason || "The passport office rejected that. Try again?");
+      refresh();
+    } finally {
+      setClaiming(false);
+    }
   };
 
   const handleImport = () => {
@@ -122,8 +132,13 @@ export default function ClaimBlock({ refresh }: { refresh: () => void }) {
             ))}
           </div>
 
-          <button className="btn lime" style={{ width: "100%" }} disabled={!username.trim()} onClick={submit}>
-            Issue my passport →
+          <button
+            className="btn lime"
+            style={{ width: "100%" }}
+            disabled={!username.trim() || claiming}
+            onClick={submit}
+          >
+            {claiming ? "minting your key…" : "Issue my passport →"}
           </button>
           
           <hr className="rule" />

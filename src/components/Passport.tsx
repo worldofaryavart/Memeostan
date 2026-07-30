@@ -44,10 +44,12 @@ export default function Passport({ citizen }: { citizen: Citizen }) {
   const isImg = citizen.pfp.startsWith("data:") || citizen.pfp.startsWith("/");
 
   const handleBackup = () => {
-    const json = exportWallet(citizen.address);
+    const json = exportWallet();
     if (json) {
       navigator.clipboard.writeText(json);
       alert("Backup JSON copied to clipboard! Keep it secret, keep it safe. 🤫");
+    } else {
+      alert("This browser doesn't hold a citizenship key to back up.");
     }
   };
 

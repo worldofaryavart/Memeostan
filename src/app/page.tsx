@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { me, registerCitizen, signOut, FACTIONS, allCitizens } from "@/lib/citizens";
+import { me, signOut, FACTIONS, allCitizens } from "@/lib/citizens";
+import { claimCitizenship } from "@/lib/actionClient";
 import { ledger } from "@/lib/ledger";
 import { grossDomesticBrainrot, memeDilution } from "@/lib/economy";
 import Passport from "@/components/Passport";
@@ -169,6 +170,7 @@ export default function LandingPage() {
   const [selectedPfp, setSelectedPfp] = useState("🫠");
   const [city, setCity] = useState("Brainrot City");
   const [party, setParty] = useState("Global Brainrot Party");
+  const [claiming, setClaiming] = useState(false);
 
   const activeColor = FACTION_DETAILS[faction]?.color || "var(--lime)";
   const activeGlow = FACTION_DETAILS[faction]?.glowColor || "rgba(57, 255, 20, 0.25)";
@@ -335,22 +337,30 @@ export default function LandingPage() {
   const pctSigmaBoi = Math.round((partyVotes.sigmaBoi / totalPartyVotes) * 100);
   const pctNpc404 = 100 - pctMemeLord - pctSigmaBoi;
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!username.trim() || claiming) return;
 
-    registerCitizen({
-      username: username.trim(),
-      faction: faction,
-      pfp: selectedPfp,
-      city: city,
-      party: party,
-    });
+    setClaiming(true);
+    try {
+      const res = await claimCitizenship({
+        username: username.trim(),
+        faction: faction,
+        pfp: selectedPfp,
+        city: city,
+        party: party,
+      });
 
-    if (typeof window !== "undefined") {
+      if (!res.ok) {
+        alert(res.reason || "The passport office rejected that. Try again?");
+        return;
+      }
+
       window.dispatchEvent(new Event("nation-update"));
+      router.push("/square");
+    } finally {
+      setClaiming(false);
     }
-    router.push("/square");
   };
 
   const handleSignOut = () => {
@@ -2659,7 +2669,7 @@ export default function LandingPage() {
                 <button
                   type="submit"
                   className="btn"
-                  disabled={!username.trim()}
+                  disabled={!username.trim() || claiming}
                   style={{
                     width: "100%",
                     fontSize: 18,
@@ -2671,7 +2681,7 @@ export default function LandingPage() {
                     transition: "transform 0.1s ease, box-shadow 0.1s ease",
                   }}
                 >
-                  ESTABLISH digital IDENTITY ⚡
+                  {claiming ? "MINTING YOUR KEY…" : "ESTABLISH digital IDENTITY ⚡"}
                 </button>
               </div>
             </form>

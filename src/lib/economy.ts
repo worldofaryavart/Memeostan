@@ -14,6 +14,7 @@ export const RATES = {
   SPAM_TAX: 20, // burn for low-effort posts (dilution control)
   WELCOME_GRANT: 250, // starting MMC for a new citizen
   BOOST_COST: 50, // cost to boost a post
+  TIP: 10, // fixed "meme it" tip on a post — priced here, never by the caller
 };
 
 // Gross Domestic Brainrot: posts produced × engagement × money velocity.

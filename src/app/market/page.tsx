@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNation } from "@/components/useNation";
 import { me } from "@/lib/citizens";
+import { act } from "@/lib/actionClient";
 import { db } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
+import { STORE_ITEMS, type StoreItem } from "@/lib/market";
 import {
   grossDomesticBrainrot,
   memeDilution,
@@ -18,25 +20,6 @@ import Passport from "@/components/Passport";
 import type { EconomicEvent } from "@/lib/types";
 import FloatingStickers from "@/components/FloatingStickers";
 import PageHero from "@/components/PageHero";
-
-interface StoreItem {
-  id: string;
-  name: string;
-  emoji: string;
-  type: "badge" | "border";
-  price: number;
-  description: string;
-}
-
-const STORE_ITEMS: StoreItem[] = [
-  { id: "badge_certified_rizzler", name: "Certified Rizzler", emoji: "👑", type: "badge", price: 150, description: "Official certification of maximum charismatic output." },
-  { id: "badge_sigma_chad", name: "Sigma Chad", emoji: "🗿", type: "badge", price: 200, description: "For the silent, brooding, absolute vibe lords." },
-  { id: "badge_brainrot_veteran", name: "Brainrot Veteran", emoji: "👽", type: "badge", price: 100, description: "Survived 24 hours of infinite vertical video feeds." },
-  { id: "badge_chief_vibes_officer", name: "Chief Vibes Officer", emoji: "🏛️", type: "badge", price: 500, description: "Ultimate legislative authority badge. Flex on common citizens." },
-  { id: "border_neon_rainbow", name: "Neon Pulse Border", emoji: "🌈", type: "border", price: 250, description: "A high-frequency color shifting neon glow around your avatar." },
-  { id: "border_gold_foil", name: "Royal Gold Frame", emoji: "✨", type: "border", price: 300, description: "Solid 24k gold leaf frame with luxurious drop shadow." },
-  { id: "border_retro_cyber", name: "Retro Scanline Frame", emoji: "👾", type: "border", price: 120, description: "8-bit classic green scanline grid frame for retro aesthetics." },
-];
 
 const EVENT_COLORS: Record<string, string> = {
   crash:     "p-red",
@@ -97,32 +80,16 @@ export default function MarketPage() {
 
   const handleBuyItem = (item: StoreItem) => {
     if (!citizen) { setShopError("You need a passport first!"); return; }
-    const balance = ledger.balanceOf(citizen.address);
-    if (balance < item.price) {
-      setShopError(`Insufficient balance! This item costs ${item.price} MMC, but you only have ${balance} MMC.`);
-      return;
-    }
-    const owned = getOwnedItems();
-    if (owned.includes(item.id)) { setShopError("You already own this item!"); return; }
-    ledger.burn(citizen.address, item.price, `purchased cosmetic item: ${item.name}`);
-    db.update((s) => {
-      if (!s.purchasedCosmetics) s.purchasedCosmetics = {};
-      if (!s.purchasedCosmetics[citizen.address]) s.purchasedCosmetics[citizen.address] = [];
-      s.purchasedCosmetics[citizen.address].push(item.id);
-    });
-    setShopError(null);
+    // The price is the store's, not ours — we only name the item.
+    const res = act("market.buy", { itemId: item.id });
+    setShopError(res.ok ? null : res.reason || "That purchase didn't go through.");
     refresh();
     refreshEconomy();
   };
 
-  const handleEquipItem = (itemId: string, type: "badge" | "border", isEquipped: boolean) => {
+  const handleEquipItem = (itemId: string, _type: "badge" | "border", isEquipped: boolean) => {
     if (!citizen) return;
-    db.update((s) => {
-      const cit = s.citizens[citizen.address];
-      if (!cit) return;
-      if (type === "badge") cit.equippedBadge = isEquipped ? undefined : itemId;
-      else cit.equippedBorder = isEquipped ? undefined : itemId;
-    });
+    act("citizen.equip", { itemId, equip: !isEquipped });
     refresh();
   };
 

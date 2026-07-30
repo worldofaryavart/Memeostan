@@ -9,9 +9,9 @@ import {
   getTerritories,
   getDominantCity,
   getSkirmishLog,
-  launchSkirmish,
   SKIRMISH_COST,
 } from "@/lib/territory";
+import { act, newActionId } from "@/lib/actionClient";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import type { SkirmishResult } from "@/lib/types";
@@ -85,11 +85,16 @@ export default function CitiesPage() {
 
     // Small delay for drama
     setTimeout(() => {
-      const outcome = launchSkirmish(myCity, targetCity, citizen.address);
-      if (outcome.error) {
-        setAttackMsg({ ok: false, text: outcome.error });
+      const res = act("city.skirmish", {
+        attackerCity: myCity,
+        defenderCity: targetCity,
+        skirmishId: newActionId("skm"),
+      });
+
+      if (!res.ok) {
+        setAttackMsg({ ok: false, text: res.reason || "The war room turned you down." });
       } else {
-        const r = outcome.result;
+        const r = res.data?.result as SkirmishResult;
         const won = r.winner === myCity;
         const text = won
           ? `⚔️ VICTORY! ${myCity} crushed ${targetCity} (${r.attackerScore} vs ${r.defenderScore}). Seized +${r.territoryGained}% territory! 🏴`
@@ -102,18 +107,9 @@ export default function CitiesPage() {
     }, 1200);
   };
 
-  const handleFreeSimulation = () => {
-    const cities = ALL_CITIES.map((c) => c.name);
-    const idxA = Math.floor(Math.random() * cities.length);
-    let idxB = Math.floor(Math.random() * cities.length);
-    while (idxB === idxA) idxB = Math.floor(Math.random() * cities.length);
-    setIsAttacking(true);
-    setTimeout(() => {
-      launchSkirmish(cities[idxA], cities[idxB]);
-      refreshTerritories();
-      setIsAttacking(false);
-    }, 800);
-  };
+  // The old "free simulation" button had the browser redraw the national borders
+  // for nobody's benefit but its own. Territory only moves when a citizen pays for
+  // a real skirmish now, so there is nothing to simulate.
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -374,33 +370,11 @@ export default function CitiesPage() {
                     {isAttacking ? "⏳ Skirmish in progress..." : `⚔️ Attack ${targetCity || "..."} — ${SKIRMISH_COST} MMC`}
                   </button>
 
-                  <hr className="rule" style={{ margin: "14px 0" }} />
-                  <div className="hand" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 8 }}>
-                    Or run a free AI simulation (no MMC cost):
-                  </div>
-                  <button
-                    className="btn lime ghost"
-                    style={{ width: "100%" }}
-                    disabled={isAttacking}
-                    onClick={handleFreeSimulation}
-                  >
-                    🎲 Simulate Random Skirmish
-                  </button>
                 </>
               ) : (
-                <>
-                  <p className="hand" style={{ fontSize: 13, marginBottom: 14 }}>
-                    Claim a passport to launch real skirmishes and seize territory for your city.
-                  </p>
-                  <button
-                    className="btn lime"
-                    style={{ width: "100%" }}
-                    disabled={isAttacking}
-                    onClick={handleFreeSimulation}
-                  >
-                    🎲 Simulate Random Skirmish
-                  </button>
-                </>
+                <p className="hand" style={{ fontSize: 13, marginBottom: 14 }}>
+                  Claim a passport to launch real skirmishes and seize territory for your city.
+                </p>
               )}
             </div>
 

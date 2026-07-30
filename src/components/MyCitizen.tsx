@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { db } from "@/lib/db";
 import { me, allCitizens } from "@/lib/citizens";
+import { act } from "@/lib/actionClient";
 import { ledger } from "@/lib/ledger";
 import { allPosts } from "@/lib/posts";
 import { vibeOf } from "@/lib/economy";
@@ -41,7 +42,7 @@ export default function MyCitizen() {
       setError("Please select a recipient.");
       return;
     }
-    const res = ledger.transfer(citizen.address, toAddress, amount, memo || "tip/transfer");
+    const res = act("mmc.transfer", { to: toAddress, amount, memo: memo || "tip/transfer" });
     if (res.ok) {
       setToAddress("");
       setAmountStr("");

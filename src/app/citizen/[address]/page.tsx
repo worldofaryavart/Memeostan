@@ -6,6 +6,7 @@ import { useNation } from "@/components/useNation";
 import { me, getCitizen } from "@/lib/citizens";
 import { allPosts } from "@/lib/posts";
 import { ledger } from "@/lib/ledger";
+import { act } from "@/lib/actionClient";
 import { shortAddress } from "@/lib/wallet";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
@@ -60,7 +61,11 @@ export default function CitizenProfilePage() {
       return;
     }
     
-    const res = ledger.transfer(viewer.address, address, parsedAmount, memo.trim() || `direct transfer to @${targetCitizen.username}`);
+    const res = act("mmc.transfer", {
+      to: address,
+      amount: parsedAmount,
+      memo: memo.trim() || `direct transfer to @${targetCitizen.username}`,
+    });
     if (res.ok) {
       setAmount("");
       setMemo("");

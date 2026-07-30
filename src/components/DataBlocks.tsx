@@ -7,6 +7,7 @@ import { vibeOf } from "@/lib/economy";
 import { shortAddress } from "@/lib/wallet";
 import { getCitizen } from "@/lib/citizens";
 import { governance } from "@/lib/governance";
+import { act } from "@/lib/actionClient";
 import { elections } from "@/lib/elections";
 import { useEffect, useState } from "react";
 
@@ -92,7 +93,7 @@ export function ActivePoll() {
   const handleVote = (voteType: "yes" | "no") => {
     if (!citizen) return;
     if (!topProp) return;
-    governance.vote(topProp.id, citizen.address, voteType);
+    act("proposal.vote", { proposalId: topProp.id, vote: voteType });
     // Re-render via the nation-update event instead of a jarring full reload.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("nation-update"));
