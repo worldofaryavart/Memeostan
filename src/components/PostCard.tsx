@@ -5,7 +5,8 @@ import { getCitizen, me } from "@/lib/citizens";
 import { act } from "@/lib/actionClient";
 import { ledger } from "@/lib/ledger";
 import { RATES, vibeOf } from "@/lib/economy";
-import type { Post } from "@/lib/types";
+import { isStateAccount } from "@/lib/systemAccounts";
+import type { Citizen, Post } from "@/lib/types";
 
 function timeAgo(at: number): string {
   const s = Math.floor((Date.now() - at) / 1000);
@@ -29,17 +30,28 @@ function tiltOf(id: string): string {
   return "";
 }
 
-// Random background color skin for posts to create a bright multi-color collage feed.
-function colorSkinOf(id: string): string {
-  const code = id.charCodeAt(id.length - 1) % 10;
-  if (code === 0) return "b-yellow";
-  if (code === 1) return "b-lime";
-  if (code === 2) return "b-cyan";
-  if (code === 3) return "b-pink";
-  if (code === 4) return "b-orange";
-  if (code === 5) return "b-purple";
-  return ""; // default paper color
+// What kind of post this is — carried by the colour of the card's spine.
+//
+// This used to be `colorSkinOf(post.id)`: a hash of the post id picked one of six
+// neon backgrounds. Colour is the loudest signal in a feed, and it was saying
+// nothing — a court verdict and a nap update were as likely to be the same
+// colour as different ones. Now the spine is the only coloured thing, it always
+// means the same thing, and the card stays ink-on-paper so it can be read.
+type PostKind = "you" | "state" | "ai" | "citizen";
+
+function kindOf(post: Post, author: Citizen | null, viewerAddress?: string): PostKind {
+  if (viewerAddress && post.author === viewerAddress) return "you";
+  if (isStateAccount(post.author)) return "state";
+  if (author?.isAI) return "ai";
+  return "citizen";
 }
+
+const KIND_LABEL: Record<PostKind, { text: string; sticker: string } | null> = {
+  you: { text: "YOU", sticker: "s-lime" },
+  state: { text: "🏛️ OFFICIAL", sticker: "s-yellow" },
+  ai: { text: "🤖 AI", sticker: "s-purple" },
+  citizen: null,
+};
 
 // Random decorative fasteners/clips/staples/pins holding the posts on the board.
 function fastenerOf(id: string): string {
@@ -62,6 +74,9 @@ export default function PostCard({ post, refresh }: { post: Post; refresh: () =>
   const myVote = viewer ? post.voters[viewer.address] : undefined;
   const vibe = vibeOf(post);
   const [tipped, setTipped] = useState(false);
+
+  const kind = kindOf(post, author, viewer?.address);
+  const label = KIND_LABEL[kind];
 
   const cast = (dir: "up" | "down") => {
     if (!viewer) return;
@@ -87,12 +102,16 @@ export default function PostCard({ post, refresh }: { post: Post; refresh: () =>
   };
 
   return (
-    <div className={`paper ${colorSkinOf(post.id)} ${fastenerOf(post.id)} ${tiltOf(post.id)}`}>
+    <div className={`paper post post-${kind} ${fastenerOf(post.id)} ${tiltOf(post.id)}`}>
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <span style={{ fontSize: 26 }}>{author?.pfp ?? "👽"}</span>
         <span className="poster" style={{ fontSize: 17, flex: 1, minWidth: 0 }}>
           {author?.username ?? "???"}
-          {author?.isAI && <span className="sticker s-purple flat" style={{ marginLeft: 8 }}>🤖 AI</span>}
+          {label && (
+            <span className={`sticker ${label.sticker} flat`} style={{ marginLeft: 8 }}>
+              {label.text}
+            </span>
+          )}
         </span>
         <span className={`sticker flat ${vibe >= 0 ? "s-lime" : "s-pink"}`}>{vibe >= 0 ? "✨" : "🥴"} {vibe}</span>
       </div>

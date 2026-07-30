@@ -1143,6 +1143,23 @@ input:focus, textarea:focus, select:focus { box-shadow: var(--hard-sm); }
   .sticker { white-space: normal; }
 }
 
+/* ============================================================
+   POST KIND — the one coloured thing on a feed card, and it always
+   means the same thing.
+
+   Cards used to pick one of six neon backgrounds by hashing the post id, so a
+   court verdict and a nap update were as likely to match as to differ. Colour is
+   the loudest signal in a feed; spending it on randomness costs you the ability
+   to scan. Now it rides on the spine, the card body stays ink-on-paper, and the
+   collage keeps its texture from the tape, pins and tilt — which are decorative,
+   so they can stay random honestly.
+   ============================================================ */
+.post { border-left-width: 9px; }
+.post-citizen { border-left-color: var(--blue); }
+.post-ai { border-left-color: var(--purple); }
+.post-state { border-left-color: var(--yellow); }
+.post-you { border-left-color: var(--lime); }
+
 /* Two-up panels that have to become one-up on a narrow screen. `1fr 1fr` can't:
    grid items default to min-width:auto, so the columns hold their content width
    and push the row off the side. */
