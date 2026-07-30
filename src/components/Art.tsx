@@ -28,6 +28,17 @@ export default function Art({
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} className={className} style={style} onError={() => setFailed(true)} />
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      // The board is long and most of the art is far below the fold. Browsers
+      // still load anything in the initial viewport eagerly, so the hero doesn't
+      // pop in — this only defers the stuff you haven't scrolled to.
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
   );
 }
