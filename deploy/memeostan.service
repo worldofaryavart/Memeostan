@@ -4,6 +4,10 @@ Documentation=https://memeostan.xyz
 After=network-online.target mongod.service
 Wants=network-online.target
 Requires=mongod.service
+# Don't thrash if the app is crash-looping on a bad config. (Both of these are
+# [Unit] keys — systemd ignores them with a warning if you put them in [Service].)
+StartLimitBurst=5
+StartLimitIntervalSec=120
 
 [Service]
 Type=simple
@@ -14,17 +18,15 @@ WorkingDirectory=/srv/memeostan
 # Secrets live here, not in the unit file. Keep it 0600 and owned by the app user.
 EnvironmentFile=/srv/memeostan/.env.production
 Environment=NODE_ENV=production
-Environment=PORT=3000
-# Bind to loopback only — Caddy is the thing facing the internet.
-Environment=HOSTNAME=127.0.0.1
 
-ExecStart=/usr/bin/npm run start
+# Bind to loopback explicitly with -H. Next listens on every interface by default,
+# which puts the app on http://<public-ip>:3000 with no TLS in front of it — and
+# WebCrypto is unavailable over plain HTTP, so that door both bypasses Caddy and
+# silently breaks citizenship. Caddy is the only thing that should face the world.
+ExecStart=/usr/bin/npx next start -H 127.0.0.1 -p 3000
 
 Restart=always
 RestartSec=5
-# Don't thrash if the app is crash-looping on a bad config.
-StartLimitBurst=5
-StartLimitIntervalSec=120
 
 StandardOutput=journal
 StandardError=journal

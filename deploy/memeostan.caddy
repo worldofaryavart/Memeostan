@@ -33,10 +33,12 @@ memeostan.xyz, www.memeostan.xyz {
 		-Server
 	}
 
+	# Log to stderr, which systemd captures — same as the other site on this box.
+	# A file sink needs the directory to be writable by Caddy's own user, and
+	# getting that wrong fails the whole config reload, taking every other site
+	# on the server down with it. journalctl -u caddy is where these end up.
 	log {
-		output file /var/log/caddy/memeostan.log {
-			roll_size 20mb
-			roll_keep 5
-		}
+		output stderr
+		format json
 	}
 }
