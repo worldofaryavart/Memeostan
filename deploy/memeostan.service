@@ -15,8 +15,11 @@ User=memeostan
 Group=memeostan
 WorkingDirectory=/srv/memeostan
 
-# Secrets live here, not in the unit file. Keep it 0600 and owned by the app user.
-EnvironmentFile=/srv/memeostan/.env.production
+# Secrets live outside the git working tree, for the same reason the deploy key
+# does: /srv/memeostan is both the app user's home AND the checkout, so anything
+# kept there is exposed to every git operation an update runs. Keep it 0600 and
+# owned by the app user.
+EnvironmentFile=/etc/memeostan/env
 Environment=NODE_ENV=production
 
 # Bind to loopback explicitly with -H. Next listens on every interface by default,
@@ -37,7 +40,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/memeostan/.next
+ReadWritePaths=/srv/memeostan
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
