@@ -203,16 +203,42 @@ Then walk through it once on a phone, on the real domain:
 
 ## Updating
 
+Push to `main`, then on the server:
+
 ```bash
-cd /srv/memeostan
-sudo -u memeostan git pull
-sudo -u memeostan npm ci
-sudo -u memeostan npm run build
-sudo systemctl restart memeostan
+sudo /srv/memeostan/deploy/update.sh
 ```
+
+It fetches, resets the tracked files, reinstalls, rebuilds, restarts and then
+checks the app actually answers. It refuses to restart if the build failed — a
+half-written `.next` serves a broken country rather than an old one — and
+`git reset --hard` only moves tracked files, so `.env.production`, `node_modules`
+and `.next` survive.
 
 There is a moment of downtime during the restart. Fine for now; if it starts to
 matter, build into a fresh directory and swap a symlink.
+
+### The deploy key
+
+The repo is private, so the box authenticates to GitHub with a read-only deploy
+key. **It lives in `/etc/memeostan/`, deliberately outside the working tree.**
+
+That location matters. The app user's home directory *is* the git checkout, so a
+key at `~/.ssh/` sits inside the repo — where a `git clean` would delete it, and
+where it is one careless command away from being committed. The key is bound to
+the repo through `.git/config` instead, which no checkout or reset rewrites:
+
+```bash
+git config core.sshCommand "ssh -i /etc/memeostan/github_deploy \
+  -o IdentitiesOnly=yes -o UserKnownHostsFile=/etc/memeostan/known_hosts"
+```
+
+To rotate it: generate a new pair in `/etc/memeostan`, add the `.pub` at
+**GitHub → repo → Settings → Deploy keys** (read-only), and delete the old one.
+
+```bash
+sudo -u memeostan git -C /srv/memeostan ls-remote origin >/dev/null && echo "deploy key works"
+```
 
 ## Backups
 
