@@ -173,6 +173,17 @@ describe("pendingVerdicts — an empty jury box is not an acquittal", () => {
     expect(run(pendingVerdicts)).toHaveLength(0);
   });
 
+  it("honours a grace period, so the clock doesn't outrun the court's reasoning", () => {
+    state.trials = [trial({ endsAt: Date.now() - 10_000 })];
+    expect(run(() => pendingVerdicts(60_000))).toHaveLength(0); // clock stands back
+    expect(run(() => pendingVerdicts(0))).toHaveLength(1); // the beat may rule
+  });
+
+  it("still resolves once the grace period has passed and nobody ruled", () => {
+    state.trials = [trial({ endsAt: Date.now() - 90_000 })];
+    expect(run(() => pendingVerdicts(60_000))).toHaveLength(1);
+  });
+
   it("convicts from the bench when nobody sat on the jury", () => {
     // The old tally was `guilty = yesVotes > noVotes`, so 0 > 0 acquitted the
     // defendant and paid them compensation. On an empty country that is a faucet.

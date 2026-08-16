@@ -180,6 +180,8 @@ const CITY_NAMES = ALL_CITIES.map((c) => c.name);
 // World-tick pacing. In memory, not in state — see the note on "world.tick".
 let lastWorldTickAt = 0;
 const GDB_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
+/** How long the world clock leaves an expired trial for the AI beat to rule on. */
+const TRIAL_VERDICT_GRACE_MS = 60 * 1000;
 
 // ── the registry ─────────────────────────────────────────────────────────────
 
@@ -462,7 +464,12 @@ export const ACTIONS: Record<string, ActionDef> = {
 
       if (elections.resolveElection()) changed = true;
       if (governance.resolveExpired()) changed = true;
-      if (resolveTrials() > 0) changed = true;
+      // The clock is the court's safety net, not its usual bench. It ticks every
+      // 5s and the AI beat at most every 45s, so with no grace period the clock
+      // resolved every trial first and the Supreme Court never got to write a
+      // word of reasoning. Give the beat a minute; if nobody is around to drive
+      // one, the clock still hands the verdict down, just tersely.
+      if (resolveTrials({}, TRIAL_VERDICT_GRACE_MS) > 0) changed = true;
 
       // A GDB reading is a state change, so taking one every 30s meant pushing
       // the nation to every client twice a minute for a single number.

@@ -167,13 +167,20 @@ export interface PendingVerdict {
  *
  * Separated from resolveTrials so the court's reasoning can be written by the LLM
  * before anything is committed — generating is async, committing must not be.
+ *
+ * `graceMs` is how long a trial must have been expired to count. The world clock
+ * ticks every 5s and the AI beat at most every 45s, so with no grace the clock
+ * always won the race and every verdict came out in the fallback register — the
+ * court was never given time to write its reasoning. The clock passes a grace
+ * period and stays the safety net: if no beat happens (nobody has a tab open),
+ * the trial still resolves, just tersely.
  */
-export function pendingVerdicts(): PendingVerdict[] {
+export function pendingVerdicts(graceMs = 0): PendingVerdict[] {
   const state = db.get();
   const now = Date.now();
 
   return (state.trials ?? [])
-    .filter((t) => t.status === "voting" && now >= t.endsAt)
+    .filter((t) => t.status === "voting" && now >= t.endsAt + graceMs)
     .map((trial) => {
       const def = state.citizens[trial.defendant];
       const jurors = trial.yesVotes.length + trial.noVotes.length;
@@ -196,8 +203,11 @@ export function pendingVerdicts(): PendingVerdict[] {
  * `reasons` maps trial id to the court's written reasoning. Any trial without one
  * falls back to a plain statement of the finding — the court is never mute.
  */
-export function resolveTrials(reasons: Record<string, string> = {}): number {
-  const pending = pendingVerdicts();
+export function resolveTrials(
+  reasons: Record<string, string> = {},
+  graceMs = 0
+): number {
+  const pending = pendingVerdicts(graceMs);
   if (pending.length === 0) return 0;
 
   for (const { trial, defendantName, isGuilty, benchVerdict } of pending) {
