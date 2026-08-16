@@ -1,119 +1,41 @@
-// seed.ts — boot the nation. Registers the AI candidates and drops some seed
-// posts so the feed is never an empty, sad public square on first visit.
+// seed.ts — boot the nation.
+//
+// This used to seed a population: three AI candidates standing for office and
+// three "ghost" citizens padding the feed. Both are gone. Memeostan's population
+// is whoever has claimed a passport, and on day one that is nobody.
+//
+// What gets seeded now is the state itself — the police, the courts, the
+// commission, the treasury, the broadcaster. A country with no citizens still
+// has a bureaucracy; it simply has nothing to do yet.
 
 import { db } from "@/lib/db";
-import { ensureAICitizen } from "@/lib/citizens";
-import { createPost } from "@/lib/posts";
-import { CANDIDATES } from "@/ai/candidates";
+import { STATE_ORGANS } from "@/lib/systemAccounts";
 import type { Citizen } from "@/lib/types";
 
-const SEED_HUMAN_POSTS = [
-  { who: 0, text: "just got my passport. aura starts at 1000?? we're so back 🫡" },
-  { who: 1, text: "the 3 AM clause is the only law that has ever protected me" },
-  { who: 2, text: "GDB is up 12% and I personally take full credit for it" },
-];
-
-const GHOSTS = [
-  { username: "NapEnjoyer", faction: "NPC", pfp: "😴" },
-  { username: "SigmaGrindset", faction: "Sigma", pfp: "🗿" },
-  { username: "RatioVictim", faction: "Rizzler", pfp: "💀" },
-];
-
-const CYBER_POLICE_CITIZEN: Citizen = {
-  address: "0xai_cyberpolice000000000000000000police",
-  username: "cyber_police",
-  faction: "NPC",
-  pfp: "👮",
-  aura: 9999,
-  isAI: true,
-  joinedAt: Date.now(),
-  running: "AI Cyber Police Commissioner",
-  city: "Brainrot City",
-  party: "Global Brainrot Party",
-};
-
-const ELECTION_COMMISSION_CITIZEN: Citizen = {
-  address: "0xai_electioncommission000000000000election",
-  username: "election_commission",
-  faction: "NPC",
-  pfp: "🗳️",
-  aura: 9999,
-  isAI: true,
-  joinedAt: Date.now(),
-  running: "AI Federal Election Bureau",
-  city: "Brainrot City",
-  party: "Global Brainrot Party",
-};
-
-const CONSTITUTIONAL_COURT_CITIZEN: Citizen = {
-  address: "0xai_constitutionalcourt0000000000court",
-  username: "constitutional_court",
-  faction: "NPC",
-  pfp: "⚖️",
-  aura: 9999,
-  isAI: true,
-  joinedAt: Date.now(),
-  running: "AI High Judiciary Court",
-  city: "Brainrot City",
-  party: "Global Brainrot Party",
-};
-
 export function bootNation(): void {
-  // Ensure AI system citizens are seeded
   db.update((s) => {
-    if (!s.citizens[CYBER_POLICE_CITIZEN.address]) {
-      s.citizens[CYBER_POLICE_CITIZEN.address] = CYBER_POLICE_CITIZEN;
-      s.balances[CYBER_POLICE_CITIZEN.address] = 50000;
-    }
-    if (!s.citizens[ELECTION_COMMISSION_CITIZEN.address]) {
-      s.citizens[ELECTION_COMMISSION_CITIZEN.address] = ELECTION_COMMISSION_CITIZEN;
-      s.balances[ELECTION_COMMISSION_CITIZEN.address] = 100000;
-    }
-    if (!s.citizens[CONSTITUTIONAL_COURT_CITIZEN.address]) {
-      s.citizens[CONSTITUTIONAL_COURT_CITIZEN.address] = CONSTITUTIONAL_COURT_CITIZEN;
-      s.balances[CONSTITUTIONAL_COURT_CITIZEN.address] = 100000;
-    }
-  });
+    for (const organ of STATE_ORGANS) {
+      if (s.citizens[organ.address]) continue;
 
-  // Register AI candidates once (idempotent).
-  CANDIDATES.forEach(ensureAICitizen);
+      const record: Citizen = {
+        address: organ.address,
+        username: organ.username,
+        handle: organ.handle,
+        // State organs have no faction — they serve whoever is in office. The
+        // field is required by the type, so it carries the office instead.
+        faction: organ.office,
+        pfp: organ.pfp,
+        aura: 0, // the state has no reputation to win or lose
+        isAI: true,
+        joinedAt: Date.now(),
+        running: organ.office,
+        personalityDesc: organ.voice,
+      };
 
-  // Ensure cabinet roles are populated on boot if the cabinet is currently empty
-  const anyCabinet = Object.values(db.get().citizens).some(
-    (c) => c.isAI && c.running && c.running !== "Candidate"
-  );
-  if (!anyCabinet) {
-    db.update((s) => {
-      CANDIDATES.forEach((cand) => {
-        const citizen = s.citizens[cand.address];
-        if (citizen) {
-          citizen.running = cand.running;
-        }
-      });
-    });
-  }
+      s.citizens[organ.address] = record;
+      s.balances[organ.address] = organ.endowment;
+    }
 
-  GHOSTS.forEach((g, i) => {
-    const addr = "0xghost" + i + "0000000000000000000000000000000ghost";
-    db.update((st) => {
-      if (!st.citizens[addr]) {
-        const ghost: Citizen = {
-          address: addr,
-          username: g.username,
-          faction: g.faction,
-          pfp: g.pfp,
-          aura: 900 + i * 120,
-          // Ghosts are seeded characters whose posts come out of the same LLM as
-          // every other bot's. Labelling them human made the population look more
-          // real than it is, in the one place where being straight about it costs
-          // nothing — you can tell who's a person, and that's the point.
-          isAI: true,
-          joinedAt: Date.now(),
-        };
-        st.citizens[addr] = ghost;
-        st.balances[addr] = 300;
-      }
-    });
+    if (!s.founded) s.founded = Date.now();
   });
 }
-

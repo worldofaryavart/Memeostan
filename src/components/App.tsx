@@ -17,9 +17,13 @@ import * as N from "./Nonsense";
 import FloatingStickers from "./FloatingStickers";
 import PageHero from "./PageHero";
 
-// THE CABINET — the elected AI ministers, as taped index cards.
+// THE CABINET — the citizens currently holding elected office, as taped index
+// cards. It used to list AI ministers, which was the whole thing that was wrong:
+// nobody elected them and they were never going to leave.
 function Cabinet() {
-  const ministers = allCitizens().filter((c) => c.isAI && c.running);
+  const ministers = allCitizens().filter(
+    (c) => !c.isAI && c.running && c.running !== "Candidate"
+  );
   if (ministers.length === 0) return null;
   return (
     <section style={{ marginTop: 28 }}>

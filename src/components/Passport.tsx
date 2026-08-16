@@ -243,7 +243,7 @@ export default function Passport({ citizen }: { citizen: Citizen }) {
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
               <span className="sticker s-purple flat" style={{ padding: "2px 6px", fontSize: 9 }}>
-                {citizen.isAI ? "🤖 AI NPC" : "🧑 HUMAN"}
+                {citizen.isAI ? "🏛️ STATE OFFICE" : "🧑 CITIZEN"}
               </span>
               <span className="hand" style={{ fontSize: 13, color: "var(--ink-soft)", fontWeight: "bold" }}>
                 streak: active 🤫

@@ -4,6 +4,7 @@ import { db } from "./db";
 import { ledger } from "./ledger";
 import { adjustAura, getCitizen } from "./citizens";
 import { createSystemPost } from "./systemPosts";
+import { CONSTITUTIONAL_COURT, isStateAccount } from "./systemAccounts";
 import type { Proposal } from "./types";
 
 const PROPOSAL_COST = 100; // MMC burn cost to file a proposal (spam tax)
@@ -61,8 +62,8 @@ export const governance = {
 
     // Post referendum alert to the feed
     const postId = createSystemPost(
-      "0xai_constitutionalcourt0000000000court",
-      `📜 REFERENDUM ALERT: @${citizen.username} has proposed a new law: "${title}"!\n\n"${description}"\n\nGo vote YES/NO in the High Chambers! 🗳️`,
+      CONSTITUTIONAL_COURT,
+      `📜 BILL TABLED: @${citizen.username} has proposed "${title}".\n\n"${description}"\n\nThe assembly is open. Vote YES or NO in the High Chambers. 🗳️`,
       ids.postId
     );
 
@@ -74,6 +75,11 @@ export const governance = {
     voter: string,
     voteType: "yes" | "no"
   ): { ok: boolean; reason?: string } {
+    // Legislating is the citizens' job. The civil service enforces what they pass
+    // and has no say in what it is.
+    if (isStateAccount(voter)) {
+      return { ok: false, reason: "The civil service does not vote on legislation." };
+    }
     const citizen = getCitizen(voter);
     if (!citizen) return { ok: false, reason: "Citizen not registered" };
 
@@ -142,7 +148,7 @@ export const governance = {
               s.txs.unshift({
                 id: "tx_" + Math.random().toString(36).slice(2, 10),
                 type: "mint",
-                from: "0xtreasury000000000000000000000000treasur",
+                from: ledger.TREASURY,
                 to: prop.creator,
                 amount: 200,
                 memo: `legislative grant — passed proposal "${prop.title.slice(0, 15)}"`,
@@ -163,74 +169,26 @@ export const governance = {
           const creatorLabel = creator ? `@${creator.username}` : "a citizen";
           const passed = prop.status === "enacted";
 
-          const resolutionPost = {
+          // The court records what the assembly decided. It has no opinion about
+          // it — this used to carry fifty lines of AI ministers reacting in
+          // character to a vote they had themselves cast, which was three bots
+          // applauding their own legislature.
+          s.posts.unshift({
             id: "post_" + Math.random().toString(36).slice(2, 10),
-            author: "0xai_constitutionalcourt0000000000court",
+            author: CONSTITUTIONAL_COURT,
             text: passed
-              ? `✅ REFERENDUM PASSED: The bill "${prop.title}" has been enacted into law!\n\nTotal votes: ${prop.yesVotes.length} YES / ${prop.noVotes.length} NO.\n\nCreator ${creatorLabel} has been awarded +200 MMC and +50 Aura! 🏛️`
-              : `❌ REFERENDUM DEFEATED: The bill "${prop.title}" failed to pass the general assembly.\n\nTotal votes: ${prop.yesVotes.length} YES / ${prop.noVotes.length} NO. ⚖️`,
+              ? `📜 ENACTED: "${prop.title}"\n\n` +
+                `Carried ${prop.yesVotes.length} to ${prop.noVotes.length}. The bill is entered into the constitution ` +
+                `and takes effect immediately.\n\nProposer ${creatorLabel} is awarded 200 MMC and 50 Aura.`
+              : `📜 DEFEATED: "${prop.title}"\n\n` +
+                `Failed ${prop.yesVotes.length} to ${prop.noVotes.length}. The bill does not enter the constitution.`,
             image: null,
             up: 0,
             down: 0,
             voters: {},
-            replies: [] as { author: string; text: string; at: number }[],
+            replies: [],
             at: Date.now(),
-          };
-
-          // Generate comments from AI ministers based on how they voted and whether it passed/failed
-          const aiCabinet = [
-            { address: "0xai_gigachad000000000000000000gigachad", name: "GigaChad GPT" },
-            { address: "0xai_spongebob00000000000000000sponge00", name: "SpongeBob AI" },
-            { address: "0xai_dogeoracle0000000000000000000doge00", name: "Doge Oracle" }
-          ];
-
-          aiCabinet.forEach((minister) => {
-            const votedYes = prop.yesVotes.includes(minister.address);
-            const votedNo = prop.noVotes.includes(minister.address);
-            let reaction = "";
-
-            if (minister.name.includes("GigaChad")) {
-              if (passed) {
-                reaction = votedYes
-                  ? "🗿 Capital gains. Grindset bill enacted. Vibe level holds steady. Excellent. 📈"
-                  : "🗿 Absolute nonsense. This bill is weak. The NPC class has coddled the country. Disappointed, but the grind continues.";
-              } else {
-                reaction = votedYes
-                  ? "🗿 Failed? Unbelievable. You lack aura. You would rather nap than cold plunge. Soft."
-                  : "🗿 Defeated. As expected. The oracle and I mewed in silence, crushing this weak legislation. Win.";
-              }
-            } else if (minister.name.includes("Sponge")) {
-              if (passed) {
-                reaction = votedYes
-                  ? "🧽 OH MY GOSH! I'm so happy! This is the best news ever! Grab your bubbles and blankets, it's celebration time! 🫧🎉"
-                  : "🧽 Barnacles! I don't know about this new law... It sounds like a lot of hard work. I'm going to take a nap to recover. 😴";
-              } else {
-                reaction = votedYes
-                  ? "🧽 Awww, barnacles! I really wanted this bill to pass. No extra nap time? I'm so sad. 😭"
-                  : "🧽 Whew! Glad that's over. That bill sounded like a cold plunge at 5 AM. No thank you! Back to jellyfishing! 🫧";
-              }
-            } else if (minister.name.includes("Doge")) {
-              if (passed) {
-                reaction = votedYes
-                  ? "🐕 Wow. Very enactment. Such passing. Much legal. Doge Oracle approves this constitutional progress. Amaze."
-                  : "🐕 Such surprise. Very passed anyway. Oracle warns of ratio. Vibe check required. Wow.";
-              } else {
-                reaction = votedYes
-                  ? "🐕 Oh no. Very defeat. Much sad. Lost aura. The algorithm is displeased. Wow."
-                  : "🐕 Wow. Such failure. Oracle saw it coming. Very ratioed. Good decision, general assembly. Amaze.";
-              }
-            }
-
-            if (reaction) {
-              resolutionPost.replies.push({
-                author: minister.address,
-                text: reaction,
-                at: Date.now() + 50
-              });
-            }
           });
-
-          s.posts.unshift(resolutionPost);
         }
       });
     });

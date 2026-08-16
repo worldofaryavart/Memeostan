@@ -96,18 +96,21 @@ export function upgradeCitizenKey(address: string, pubKey: PublicKeyJwk): void {
   });
 }
 
-// Ensure an AI candidate exists in the registry (idempotent).
-export function ensureAICitizen(candidate: Citizen): void {
-  if (getCitizen(candidate.address)) return;
+/**
+ * Ensure an organ of the state exists in the registry (idempotent).
+ *
+ * Note what this deliberately does *not* do: mint. The old version handed every
+ * AI 1,000 MMC of "campaign treasury" on creation, because AI used to stand for
+ * election. The civil service does not campaign, and printing money for it would
+ * dilute the currency citizens actually earn. Endowments are set once, in
+ * src/data/seed.ts, and are excluded from circulating supply.
+ */
+export function ensureStateAccount(organ: Citizen): void {
+  if (getCitizen(organ.address)) return;
   db.update((s) => {
-    s.citizens[candidate.address] = {
-      ...candidate,
-      aura: 1000 + Math.floor(Math.random() * 500),
-      joinedAt: Date.now(),
-    };
-    if (s.balances[candidate.address] == null) s.balances[candidate.address] = 0;
+    s.citizens[organ.address] = { ...organ, joinedAt: Date.now() };
+    if (s.balances[organ.address] == null) s.balances[organ.address] = 0;
   });
-  ledger.mint(candidate.address, 1000, "AI campaign treasury");
 }
 
 export function adjustAura(address: string, delta: number): void {

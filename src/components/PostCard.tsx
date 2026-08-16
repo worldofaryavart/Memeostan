@@ -37,19 +37,19 @@ function tiltOf(id: string): string {
 // nothing — a court verdict and a nap update were as likely to be the same
 // colour as different ones. Now the spine is the only coloured thing, it always
 // means the same thing, and the card stays ink-on-paper so it can be read.
-type PostKind = "you" | "state" | "ai" | "citizen";
+// There is no longer an "ai" kind: every author is either you, another citizen,
+// or an organ of the state. Nothing in the feed is a bot pretending to be a person.
+type PostKind = "you" | "state" | "citizen";
 
-function kindOf(post: Post, author: Citizen | null, viewerAddress?: string): PostKind {
+function kindOf(post: Post, _author: Citizen | null, viewerAddress?: string): PostKind {
   if (viewerAddress && post.author === viewerAddress) return "you";
   if (isStateAccount(post.author)) return "state";
-  if (author?.isAI) return "ai";
   return "citizen";
 }
 
 const KIND_LABEL: Record<PostKind, { text: string; sticker: string } | null> = {
   you: { text: "YOU", sticker: "s-lime" },
   state: { text: "🏛️ OFFICIAL", sticker: "s-yellow" },
-  ai: { text: "🤖 AI", sticker: "s-purple" },
   citizen: null,
 };
 

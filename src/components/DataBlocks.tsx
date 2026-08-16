@@ -18,8 +18,10 @@ export function Dashboard() {
   const state = db.get();
   const history = state.gdbHistory || [];
   const citizensList = Object.values(state.citizens);
-  const humanCitizens = citizensList.filter(c => !c.isAI).length;
-  const aiCitizens = citizensList.filter(c => c.isAI).length;
+  // Population is people. The other number is how many offices are staffed —
+  // a fixed property of the state, not a second population competing with it.
+  const population = citizensList.filter(c => !c.isAI).length;
+  const stateOffices = citizensList.filter(c => c.isAI).length;
 
   // Generate SVG path for a tiny zine-style GDB trend line
   const renderSparkline = () => {
@@ -61,8 +63,8 @@ export function Dashboard() {
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <span className={`sticker ${dilution > 40 ? "s-pink" : "s-lime"}`}>💧 dilution {dilution}%</span>
         <span className="sticker s-purple">🪙 supply {supply.toLocaleString()}</span>
-        <span className="sticker s-yellow">🧍 humans {humanCitizens}</span>
-        <span className="sticker s-cyan">🤖 bots {aiCitizens}</span>
+        <span className="sticker s-yellow">🧍 citizens {population}</span>
+        <span className="sticker s-cyan">🏛️ state offices {stateOffices}</span>
       </div>
       {renderSparkline()}
     </div>
@@ -193,7 +195,7 @@ export function Leaderboard() {
         <div key={r.citizen.address} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
           <b className="poster" style={{ width: 20 }}>{i + 1}</b>
           <span>{r.citizen.pfp}</span>
-          <span className="marker" style={{ flex: 1, fontSize: 14, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.citizen.username}{r.citizen.isAI && " 🤖"}</span>
+          <span className="marker" style={{ flex: 1, fontSize: 14, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.citizen.username}</span>
           <span className={`sticker flat ${r.vibe >= 0 ? "s-lime" : "s-pink"}`}>{r.vibe}</span>
         </div>
       ))}

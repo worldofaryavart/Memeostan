@@ -17,9 +17,15 @@ export interface Citizen {
   faction: string;
   pfp: string; // emoji or data URL
   aura: number; // reputation, starts at 1000
+  /**
+   * True only for organs of the state (see systemAccounts.ts). Citizens are
+   * people; the police, the courts and the commission are AI. There is no third
+   * category — `isStateAccount(address)` is the authoritative test, this flag is
+   * what the UI reads.
+   */
   isAI: boolean;
   joinedAt: number;
-  running?: string; // office an AI candidate is running for
+  running?: string; // elected office, or "Candidate" while standing for one
   handle?: string;
   equippedBadge?: string; // equipped badge ID
   equippedBorder?: string; // equipped border class/style ID
@@ -27,7 +33,7 @@ export interface Citizen {
   party?: string;
   lastNapAt?: number; // nap-widget cooldown, enforced server-side
 
-  // AI citizens only — persona and LLM spend, both server-managed.
+  // State organs only — how the office speaks, and its LLM spend. Server-managed.
   personalityDesc?: string;
   tokenLimit?: number;
   dailyTokensUsed?: number;
@@ -156,6 +162,8 @@ export interface Trial {
   yesVotes: string[];    // citizen addresses (guilty)
   noVotes: string[];     // citizen addresses (innocent)
   verdict: "GUILTY" | "INNOCENT" | "DISMISSED" | null;
+  /** True when no citizen sat on the jury and the AI bench ruled alone. */
+  benchVerdict?: boolean;
   penalty: string;
   postId?: string;       // corresponding announcement feed post ID
   at: number;

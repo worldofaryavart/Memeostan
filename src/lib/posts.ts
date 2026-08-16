@@ -6,6 +6,7 @@ import { ledger } from "./ledger";
 import { RATES, vibeOf, getDailyMintedAmount, getDecayedReward } from "./economy";
 import { adjustAura, getCitizen } from "./citizens";
 import { getRulesForCitizen } from "./cities";
+import { isStateAccount } from "./systemAccounts";
 import type { Citizen, Post, VoteDir } from "./types";
 
 function newId(): string {
@@ -193,6 +194,9 @@ export function leaderboard(
     score[p.author] = (score[p.author] || 0) + vibeOf(p);
   }
   return Object.entries(score)
+    // The Supreme Court is not competing for top shitposter. Its verdicts get
+    // upvoted like anything else, and it was quietly winning the leaderboard.
+    .filter(([address]) => !isStateAccount(address))
     .map(([address, vibe]) => ({ citizen: byId[address], vibe }))
     .filter((r): r is LeaderRow => Boolean(r.citizen))
     .sort((a, b) => b.vibe - a.vibe)
