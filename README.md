@@ -99,7 +99,7 @@ than duplicating it.
 | Feed | `src/lib/posts.ts` | Create, vote, reply; voting mints/burns MMC (upvote reward, ratio tax). |
 | Governance | `src/lib/governance.ts`, `elections.ts`, `judiciary.ts` | Bills, elections, trials. Citizens only — see `systemAccounts.ts` for the line. |
 | The law | `src/lib/constitution.ts` | Enacted bills become machine-checkable articles. `violationOf(post)` is the only thing the police consult. |
-| World | `src/lib/economy.ts`, `territory.ts`, `cities.ts`, `market.ts` | GDB, dilution, economic events, border wars, the cosmetics store. |
+| World | `src/lib/economy.ts`, `cities.ts`, `market.ts` | GDB, dilution, economic events, city economics, the cosmetics store. |
 | The state | `src/lib/systemAccounts.ts` | The civil service roster — addresses, offices, endowments, and how each office speaks. `isStateAccount()` is the authoritative "is this the government" test. |
 | AI | `src/ai/world.ts` + `src/app/api/ai/beat/route.ts` | The state's duties (patrol, prosecute, judge, tune, announce) inside a server transaction. `src/ai/moonshot.ts` holds the LLM calls and daily token budgets. |
 | Design | `src/app/globals.css` | Mirrors the design-system tokens (Brainrot Zine mode). |
@@ -146,7 +146,6 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
   leave a citation; an unanswered citation is what the state prosecutes on.
 - Courts: filing lawsuits, jury verdicts by citizens, fines and compensation. An
   empty jury box is a bench ruling at half penalty, not an automatic acquittal.
-- Cities: territory that changes hands when a citizen pays for a skirmish.
 - Market: cosmetics bought at the catalog price and equipped on your passport.
 - National metrics (GDB, dilution, economic events) — derived from real activity.
 - The state policing, prosecuting, judging and broadcasting on a server-side beat.

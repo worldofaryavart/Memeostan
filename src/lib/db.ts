@@ -43,8 +43,6 @@ export function freshState(): NationState {
     purchasedCosmetics: {},
     economicEvents: [],
     taxHikeEndsAt: undefined,
-    territories: { "Brainrot City": 25, "Neo Ohio": 25, "Rizzland": 25, "Napistan": 25 },
-    skirmishLog: [],
     trials: [],
     seenNonces: [],
     lastTickAt: 0,
@@ -75,10 +73,6 @@ export function migrate(input: unknown): NationState {
   }
   if (!Array.isArray(state.economicEvents)) state.economicEvents = [];
   if (state.taxHikeEndsAt === undefined) state.taxHikeEndsAt = 0;
-  if (!state.territories || typeof state.territories !== "object") {
-    state.territories = { "Brainrot City": 25, "Neo Ohio": 25, "Rizzland": 25, "Napistan": 25 };
-  }
-  if (!Array.isArray(state.skirmishLog)) state.skirmishLog = [];
   if (!Array.isArray(state.trials)) state.trials = [];
 
   if (!state.version || state.version < 2) {

@@ -236,24 +236,26 @@ describe("the nap widget", () => {
   });
 });
 
-describe("skirmishes", () => {
-  it("refuses to let you command a city you don't live in", () => {
-    const res = run("city.skirmish", {
-      attackerCity: "Napistan",
-      defenderCity: "Rizzland",
-      skirmishId: "skm_abc123",
-    });
-    expect(res.ok).toBe(false);
-    expect(res.reason).toMatch(/Brainrot City/);
-  });
-
-  it("lets you attack from your own city", () => {
+describe("retired actions", () => {
+  it("no longer knows how to wage war between cities", () => {
+    // city.skirmish is gone with the territory system. Asserting the action is
+    // unknown rather than deleting the test keeps the removal deliberate: if it
+    // ever comes back it should come back on purpose.
     const res = run("city.skirmish", {
       attackerCity: "Brainrot City",
       defenderCity: "Rizzland",
       skirmishId: "skm_abc123",
     });
-    expect(res.ok).toBe(true);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/Unknown action/);
+  });
+
+  it("no longer lets a citizen buy a minister's vote", () => {
+    // minister.bribe went with the AI-citizen layer; the civil service has no
+    // vote to sell.
+    const res = run("minister.bribe", { proposalId: "prop_x", ministerAddress: ALICE });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/Unknown action/);
   });
 });
 

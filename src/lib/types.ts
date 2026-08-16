@@ -132,18 +132,6 @@ export interface Tx {
   at: number;
 }
 
-export interface SkirmishResult {
-  id: string;
-  at: number;
-  attackerCity: string;
-  defenderCity: string;
-  attackerScore: number;
-  defenderScore: number;
-  winner: string;       // city name of the winner
-  territoryGained: number; // % transferred
-  initiator?: string;  // citizen address who paid to launch it (undefined = AI sim)
-}
-
 export interface NationState {
   version?: number;
   // Monotonic revision. Every accepted write bumps it; writes are conditional on
@@ -173,10 +161,6 @@ export interface NationState {
   purchasedCosmetics?: Record<string, string[]>; // citizenAddress -> itemIds
   economicEvents?: EconomicEvent[];
   taxHikeEndsAt?: number; // timestamp until elevated transfer fee is active
-
-  // Phase 3 — Territorial Control
-  territories?: Record<string, number>; // cityName -> % control (0–100), sums to 100
-  skirmishLog?: SkirmishResult[];
 
   // Phase 4 — AI Judiciary & Mock Trials
   trials?: Trial[];

@@ -28,7 +28,6 @@ import { createPost, getPost, vote as votePost, boostPost } from "./posts";
 import { governance } from "./governance";
 import { elections } from "./elections";
 import { fileCharge, resolveTrials, voteOnTrial } from "./judiciary";
-import { launchSkirmish } from "./territory";
 import { buyCosmetic, equipCosmetic } from "./market";
 import { recordGdbSnapshot, RATES } from "./economy";
 import { ALL_CITIES } from "./cities";
@@ -431,30 +430,11 @@ export const ACTIONS: Record<string, ActionDef> = {
     },
   },
 
-  "city.skirmish": {
-    signed: true,
-    run({ actor, payload }) {
-      const attackerCity = oneOf(payload, "attackerCity", CITY_NAMES);
-      const defenderCity = oneOf(payload, "defenderCity", CITY_NAMES);
-      const skirmishId = id(payload, "skirmishId");
-
-      // You fight for your own city — not as whoever you'd like to be today.
-      const citizen = getCitizen(actor);
-      if (citizen?.city && citizen.city !== attackerCity) {
-        return { ok: false, reason: `You can only lead ${citizen.city} into battle.` };
-      }
-      if ((db.get().skirmishLog ?? []).some((s) => s.id === skirmishId)) {
-        return { ok: true }; // replayed
-      }
-
-      const outcome = launchSkirmish(attackerCity, defenderCity, actor, skirmishId);
-      if (outcome.error) return { ok: false, reason: outcome.error };
-      return {
-        ok: true,
-        data: { result: outcome.result, territories: outcome.territories },
-      };
-    },
-  },
+  // "city.skirmish" lived here — cities waging meme war over percentages of a
+  // map. It shared nothing with the law, the courts or the economy, it needed a
+  // populated country to mean anything, and it was surface area competing with
+  // the one idea worth having. Cities remain as identity and as economic
+  // modifiers; the war is gone.
 
   "trial.file": {
     signed: true,
