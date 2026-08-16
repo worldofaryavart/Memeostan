@@ -164,20 +164,44 @@ export const elections = {
       }
 
       if (candidates.length === 0) {
-        state.posts.unshift({
-          id: "post_" + Math.random().toString(36).slice(2, 10),
-          author: ELECTION_COMMISSION,
-          text:
-            `🗳️ ELECTION CLOSED: No nominations were received.\n\n` +
-            `No government has been formed. The civil service continues to administer ` +
-            `Memeostan in the absence of elected representatives.\n\n` +
-            `Nominations for the next term are open.`,
-          image: null,
-          up: 0,
-          down: 0,
-          voters: {},
-          replies: [],
-          at: Date.now(),
+        // Announce it once, not every term forever.
+        //
+        // An empty country holds an empty election every single day, and posting
+        // "no nominations were received" each time turns the square into a
+        // machine repeating itself at a room with nobody in it — the same failure
+        // as the arrival notices that were 7% of the old timeline. It is worth
+        // saying only when something actually changed: a government fell, or the
+        // last announcement was something else.
+        const hadGovernment = Object.values(state.citizens).some(
+          (c) => !isStateAccount(c.address) && c.running
+        );
+        const lastNotice = state.posts.find((p) => p.author === ELECTION_COMMISSION);
+        const alreadySaid = lastNotice?.text.startsWith("🗳️ ELECTION CLOSED: No nominations");
+
+        if (hadGovernment || !alreadySaid) {
+          state.posts.unshift({
+            id: "post_" + Math.random().toString(36).slice(2, 10),
+            author: ELECTION_COMMISSION,
+            text:
+              `🗳️ ELECTION CLOSED: No nominations were received.\n\n` +
+              (hadGovernment
+                ? `The outgoing government leaves office and is not replaced. `
+                : `No government has been formed. `) +
+              `The civil service continues to administer Memeostan in the absence of ` +
+              `elected representatives.\n\nNominations for the next term are open.`,
+            image: null,
+            up: 0,
+            down: 0,
+            voters: {},
+            replies: [],
+            at: Date.now(),
+          });
+        }
+
+        // A vacated office is still vacated, announced or not.
+        Object.keys(state.citizens).forEach((addr) => {
+          if (isStateAccount(addr)) return;
+          if (state.citizens[addr].running) delete state.citizens[addr].running;
         });
 
         state.activeElection = emptyBallot(Date.now() + ELECTION_DURATION());
