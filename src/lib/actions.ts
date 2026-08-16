@@ -34,6 +34,7 @@ import { recordGdbSnapshot, RATES } from "./economy";
 import { ALL_CITIES } from "./cities";
 import { FACTIONS } from "./citizens";
 import { isValidPublicKey, type PublicKeyJwk } from "./crypto";
+import { welcomeCitizen } from "./onboarding";
 import type { LawRule } from "./types";
 
 // ── the wire format ──────────────────────────────────────────────────────────
@@ -268,7 +269,17 @@ export const ACTIONS: Record<string, ActionDef> = {
         city,
         party,
       });
-      return { ok: true, data: { citizen } };
+
+      // The state acts on you the moment you exist. Claiming a passport used to
+      // drop a person into an empty feed with nothing to do and nobody to do it
+      // with; now the Registrar issues a number, pays the grant and serves the
+      // constitution on you before you have scrolled anywhere.
+      const welcomePostId = welcomeCitizen(
+        citizen,
+        payload.welcomePostId == null ? undefined : id(payload, "welcomePostId")
+      );
+
+      return { ok: true, data: { citizen, welcomePostId } };
     },
   },
 

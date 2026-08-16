@@ -11,6 +11,7 @@
 import { db } from "@/lib/db";
 import { STATE_ORGANS } from "@/lib/systemAccounts";
 import { seedFoundingArticles } from "@/lib/constitution";
+import { proclaimConstitution } from "@/lib/onboarding";
 import type { Citizen } from "@/lib/types";
 
 export function bootNation(): void {
@@ -44,4 +45,9 @@ export function bootNation(): void {
   // constitution as ordinary enacted bills rather than in code, which is what
   // makes them repealable — the citizens can vote to legalise logic.
   seedFoundingArticles();
+
+  // And put them where a visitor will actually read them. The constitution used
+  // to live on a page nobody had a reason to open, which meant the one idea that
+  // makes this country interesting was invisible from the square.
+  proclaimConstitution();
 }

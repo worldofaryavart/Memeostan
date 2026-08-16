@@ -52,6 +52,14 @@ export interface NewCitizen {
  * key. The keypair itself is minted in the browser (src/lib/actionClient.ts) —
  * this only records the public half and pays the welcome grant.
  */
+/** The next national ID. Numbers are never reused, so #1 means #1 forever. */
+export function nextCitizenNumber(): number {
+  const issued = Object.values(db.get().citizens)
+    .map((c) => c.citizenNo ?? 0)
+    .filter((n) => n > 0);
+  return issued.length === 0 ? 1 : Math.max(...issued) + 1;
+}
+
 export function registerCitizen({
   address,
   pubKey,
@@ -70,6 +78,7 @@ export function registerCitizen({
     aura: 1000,
     isAI: false,
     joinedAt: Date.now(),
+    citizenNo: nextCitizenNumber(),
     city: city || "Brainrot City",
     party: party || "Global Brainrot Party",
   };

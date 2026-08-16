@@ -25,6 +25,8 @@ export interface Citizen {
    */
   isAI: boolean;
   joinedAt: number;
+  /** Sequential national ID, issued by the Registrar. Citizens only. */
+  citizenNo?: number;
   running?: string; // elected office, or "Candidate" while standing for one
   handle?: string;
   equippedBadge?: string; // equipped badge ID

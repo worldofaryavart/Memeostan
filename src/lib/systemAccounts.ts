@@ -21,6 +21,8 @@ export const CONSTITUTIONAL_COURT = "0xai_constitutionalcourt0000000000court";
 export const SUPREME_COURT = "0xai_supremecourt0000000000000000court0";
 /** Reads the news. Used to be GigaChad, who was a candidate, which was absurd. */
 export const STATE_BROADCASTER = "0xai_statebroadcaster0000000000000press";
+/** Issues passports. The first office a new citizen ever deals with. */
+export const REGISTRAR = "0xai_registrar00000000000000000registry";
 
 export interface StateOrgan {
   address: string;
@@ -85,6 +87,16 @@ export const STATE_ORGANS: StateOrgan[] = [
     endowment: 100_000,
     voice:
       "A judge delivering a verdict on a genuinely stupid charge with total gravity. Cites the offence, states the finding, hands down the penalty. Dry, never zany.",
+  },
+  {
+    address: REGISTRAR,
+    username: "registrar",
+    handle: "@registrar",
+    office: "Bureau of Citizenship",
+    pfp: "🪪",
+    endowment: 10_000,
+    voice:
+      "A registry clerk processing an application. Formal, faintly weary, and entirely uninterested in whether you are excited. Issues numbers, states obligations, closes the window.",
   },
   {
     address: STATE_BROADCASTER,
