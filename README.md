@@ -178,6 +178,25 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
   posting, a two-letter banned word would match every post ever written — one
   referendum should not be able to end the country.
 
+**How the assembly is bounded:**
+
+- **Quorum scales with the population**, as its square root: 1 citizen needs 1
+  vote, 4 need 2, 25 need 5, 100 need 10. It has to grow or it stops meaning
+  anything; it has to grow slowly, or nothing ever passes in a country where
+  most people are lurking. Elections carry the same requirement — a ballot below
+  quorum is void and no office changes hands.
+- **A bill below quorum LAPSES rather than being defeated**, and costs the
+  proposer no Aura. Docking somebody because nobody else showed up punishes them
+  for something they had no part in.
+- **Reputation is capped at twice a new citizen's vote.** Aura-weighted voting is
+  the memeocracy and it stays, but uncapped it meant one 9,999-Aura citizen
+  outvoted nine ordinary ones single-handed — that is a peerage, not a poll.
+- **A law has to leave something legal.** Parameter bounds cannot catch "ban the
+  word *the*" — three characters, passes every bound, criminalises the country.
+  So the test is on the *effect*: a rule that would have caught most of the
+  existing feed is a general criminalisation and cannot be filed. This is the
+  only place the system overrides a majority, and it is deliberately narrow.
+
 **How the state is bounded:**
 
 - **The civil service has no franchise.** No state account votes in an election,

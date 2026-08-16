@@ -23,7 +23,7 @@
 //     code. Which means the citizens can repeal them. They can legalise logic.
 
 import { db } from "./db";
-import { CONSTITUTIONAL_COURT } from "./systemAccounts";
+import { CONSTITUTIONAL_COURT, isStateAccount } from "./systemAccounts";
 import type { LawRule, Post, Proposal } from "./types";
 
 /** Words that constitute Logic. Seeded as Article 1; repealable like anything else. */
@@ -167,8 +167,17 @@ const CHARGE_FOR: Record<EnforceableRule, string> = {
 export function testLaw(law: Proposal, post: Post): Violation | null {
   const rule = law.rule;
   if (!rule || rule.type === "repeal") return null;
+  return testRule(rule, post, law, law.article ?? 0);
+}
 
-  const article = law.article ?? 0;
+function testRule(
+  rule: LawRule,
+  post: Post,
+  law: Proposal,
+  article: number
+): Violation | null {
+  if (rule.type === "repeal") return null;
+
   const ruleType: EnforceableRule = rule.type;
   const make = (basis: string): Violation => ({
     law,
@@ -236,6 +245,62 @@ export function violationOf(post: Post): Violation | null {
     if (violation) return violation;
   }
   return null;
+}
+
+// ── proportionality ──────────────────────────────────────────────────────────
+
+/** How much of the recent feed a proposed rule would have made unlawful. */
+export interface Proportionality {
+  tested: number;
+  caught: number;
+  share: number;
+  /** Below this, there isn't enough feed to judge and the bill goes through. */
+  conclusive: boolean;
+}
+
+const PROPORTIONALITY_SAMPLE = 40;
+const PROPORTIONALITY_MIN_SAMPLE = 8;
+/** A rule that would catch more than this share of ordinary posting is not a law. */
+export const PROPORTIONALITY_LIMIT = 0.5;
+
+/**
+ * Test a proposed rule against the feed as it actually is.
+ *
+ * The parameter bounds in actions.ts stop the obviously fatal cases, but they
+ * cannot stop the clever one: "the" is three characters long, passes every
+ * bound, and appears in almost every post ever written. Banning it would make
+ * the whole country instantly criminal, and the Cyber Police would be entirely
+ * correct to enforce it.
+ *
+ * So the test is not on the parameter, it is on the effect. A rule that would
+ * have caught most of the existing feed is a general criminalisation rather than
+ * a law, and the assembly cannot pass one. This is the only place the system
+ * overrides a majority, and it is deliberately narrow: it does not care whether
+ * the law is wise, only whether it leaves anything legal.
+ */
+export function proportionality(rule: LawRule): Proportionality {
+  const empty = { tested: 0, caught: 0, share: 0, conclusive: false };
+  if (rule.type === "repeal") return empty;
+
+  const sample = db
+    .get()
+    .posts.filter((p) => !isStateAccount(p.author))
+    .slice(0, PROPORTIONALITY_SAMPLE);
+
+  if (sample.length < PROPORTIONALITY_MIN_SAMPLE) {
+    return { ...empty, tested: sample.length };
+  }
+
+  // A synthetic article, only ever used to run the check.
+  const draft = { id: "draft", title: "draft", rule } as unknown as Proposal;
+  const caught = sample.filter((post) => testRule(rule, post, draft, 0)).length;
+
+  return {
+    tested: sample.length,
+    caught,
+    share: caught / sample.length,
+    conclusive: true,
+  };
 }
 
 // ── enacting ─────────────────────────────────────────────────────────────────

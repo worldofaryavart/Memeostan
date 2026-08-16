@@ -8,6 +8,7 @@ import { elections } from "@/lib/elections";
 import { ledger } from "@/lib/ledger";
 import { act, newActionId } from "@/lib/actionClient";
 import { activeLaws, describeRule } from "@/lib/constitution";
+import { currentQuorum, electorate, tally } from "@/lib/quorum";
 import type { LawRule, LawRuleType } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
@@ -32,6 +33,12 @@ export default function GovernmentPage() {
   // enforce. Anything not in here is legal, however strongly anyone feels.
   const constitution = activeLaws();
   const repealedLaws = governance.allProposals().filter((p) => p.repealedBy);
+  const lapsedProposals = governance.allProposals().filter((p) => p.status === "lapsed");
+
+  // How many citizens have to turn out for a vote to count for anything. Shown
+  // everywhere a vote is taken — a rule nobody can see is just a surprise.
+  const quorum = currentQuorum();
+  const voters = electorate();
 
   // Proposal form state
   const [propTitle, setPropTitle] = useState("");
@@ -183,6 +190,11 @@ export default function GovernmentPage() {
               <p className="hand" style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 12 }}>
                 Filing a proposal burns <strong style={{ color: "var(--bad)" }}>100 MMC</strong> to filter low-effort spam. If the referendum passes, you earn <strong style={{ color: "var(--good)" }}>+200 MMC</strong> and <strong style={{ color: "var(--purple)" }}>+50 Aura</strong>!
               </p>
+              <p className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>
+                Quorum is <strong>{quorum}</strong> of {voters} citizen{voters === 1 ? "" : "s"}.
+                A bill with fewer votes than that lapses without a decision — and
+                costs the proposer no Aura, because nobody rejected it.
+              </p>
               
               <form onSubmit={handleCreateProposal} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
@@ -303,6 +315,7 @@ export default function GovernmentPage() {
                     const propCreator = getCitizen(prop.creator);
                     const votedYes = citizen && prop.yesVotes.includes(citizen.address);
                     const votedNo = citizen && prop.noVotes.includes(citizen.address);
+                    const count = tally(prop);
 
                     return (
                       <div key={prop.id} style={{ borderBottom: "2.5px dashed var(--ink-soft)", paddingBottom: 20 }}>
@@ -315,6 +328,20 @@ export default function GovernmentPage() {
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-soft)" }}>
                           <span>Proposed by: @{propCreator?.username || shortAddress(prop.creator)}</span>
                           <span>Expires in: {Math.max(0, Math.round((prop.endsAt - Date.now()) / 1000))}s</span>
+                        </div>
+
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 11,
+                            marginTop: 6,
+                            color: count.quorumMet ? "var(--good)" : "var(--bad)",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {count.quorumMet
+                            ? `✓ QUORUM MET — ${count.cast} of ${count.quorum} votes cast`
+                            : `QUORUM ${count.cast}/${count.quorum} — lapses without a decision if unmet`}
                         </div>
 
                         <div style={{ marginTop: 12 }}>
@@ -415,6 +442,23 @@ export default function GovernmentPage() {
               )}
             </div>
 
+            {lapsedProposals.length > 0 && (
+              <div className="paper p-white staple" style={{ opacity: 0.8 }}>
+                <span className="card-title">💤 LAPSED FOR WANT OF A QUORUM</span>
+                <p className="hand" style={{ fontSize: 13, color: "var(--ink-soft)", margin: "4px 0 8px" }}>
+                  Nobody turned out. These were not defeated and may be tabled again.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {lapsedProposals.map((prop) => (
+                    <div key={prop.id} className="mono" style={{ fontSize: 12 }}>
+                      {prop.title} ({prop.yesVotes.length + prop.noVotes.length} vote
+                      {prop.yesVotes.length + prop.noVotes.length === 1 ? "" : "s"} cast)
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 4. Defeated Referendums */}
             {failedProposals.length > 0 && (
               <div className="paper p-dark staple" style={{ opacity: 0.75 }}>
@@ -467,7 +511,12 @@ export default function GovernmentPage() {
               <span className="card-title">🗳️ ELECTION BOOTH</span>
               <div className="hand" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
                 elections cycle every 5 minutes. citizens only — the civil service
-                neither stands nor votes. vote weight = voter aura.
+                neither stands nor votes. aura weights your vote, up to twice a new
+                citizen's and never more.
+              </div>
+              <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+                Turnout of <strong>{quorum}</strong> required, or the ballot is void
+                and no office changes hands.
               </div>
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 12, borderBottom: "2.5px solid var(--ink)", paddingBottom: 6 }}>

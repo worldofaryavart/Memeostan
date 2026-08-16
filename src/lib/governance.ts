@@ -5,11 +5,16 @@ import { ledger } from "./ledger";
 import { adjustAura, getCitizen } from "./citizens";
 import { createSystemPost } from "./systemPosts";
 import { CONSTITUTIONAL_COURT, isStateAccount } from "./systemAccounts";
-import { describeRule, enact } from "./constitution";
+import {
+  PROPORTIONALITY_LIMIT,
+  describeRule,
+  enact,
+  proportionality,
+} from "./constitution";
+import { proposalDuration, tally } from "./quorum";
 import type { LawRule, Proposal } from "./types";
 
 const PROPOSAL_COST = 100; // MMC burn cost to file a proposal (spam tax)
-const PROPOSAL_DURATION = 3 * 60 * 1000; // 3 minutes for quick resolution in demo
 
 export const governance = {
   allProposals(): Proposal[] {
@@ -45,6 +50,22 @@ export const governance = {
       }
     }
 
+    // A law has to leave something legal. See constitution.ts — the parameter
+    // bounds cannot catch "ban the word 'the'", because the problem is not the
+    // parameter, it is the effect.
+    if (rule) {
+      const reach = proportionality(rule);
+      if (reach.conclusive && reach.share > PROPORTIONALITY_LIMIT) {
+        return {
+          ok: false,
+          reason:
+            `That rule would make ${reach.caught} of the last ${reach.tested} posts unlawful ` +
+            `(${Math.round(reach.share * 100)}%). A law has to leave something legal — ` +
+            `the assembly cannot criminalise ordinary posting in one bill.`,
+        };
+      }
+    }
+
     const balance = ledger.balanceOf(creator);
     if (balance < PROPOSAL_COST) {
       return {
@@ -65,7 +86,7 @@ export const governance = {
       status: "active",
       yesVotes: [],
       noVotes: [],
-      endsAt: Date.now() + PROPOSAL_DURATION,
+      endsAt: Date.now() + proposalDuration(),
       at: Date.now(),
       rule,
     };
@@ -137,29 +158,12 @@ export const governance = {
       if (!s.proposals) s.proposals = [];
       s.proposals.forEach((prop) => {
         if (prop.status === "active" && now > prop.endsAt) {
-          // Compute aura-weighted votes
-          let yesWeight = 0;
-          let noWeight = 0;
-
-          prop.yesVotes.forEach((addr) => {
-            const citizen = s.citizens[addr];
-            const weight = citizen ? Math.max(1, Math.floor(citizen.aura / 100)) : 1;
-            yesWeight += weight;
-          });
-
-          prop.noVotes.forEach((addr) => {
-            const citizen = s.citizens[addr];
-            const weight = citizen ? Math.max(1, Math.floor(citizen.aura / 100)) : 1;
-            noWeight += weight;
-          });
-
-          const totalVotes = prop.yesVotes.length + prop.noVotes.length;
-          // Quorum is met if at least 1 person voted (local simulation context)
-          const quorumMet = totalVotes >= 1;
-
+          // One counting function, shared with the UI, so what a citizen is
+          // shown while voting is exactly what decides the bill.
+          const count = tally(prop);
           let effect = "";
 
-          if (quorumMet && yesWeight > noWeight) {
+          if (count.outcome === "enacted") {
             prop.status = "enacted";
             // The bill becomes part of the constitution here. Before this, a
             // passed referendum awarded MMC and changed nothing — citizens
@@ -181,19 +185,37 @@ export const governance = {
                 at: Date.now(),
               });
               }
-          } else {
+          } else if (count.outcome === "failed") {
             prop.status = "failed";
             // Penalize creator slightly
             const creator = s.citizens[prop.creator];
             if (creator) {
               creator.aura = Math.max(0, creator.aura - 30);
             }
+          } else {
+            // Lapsed: the assembly never turned up. No aura penalty — the
+            // proposer was not rejected, they were ignored, and docking them for
+            // other people's absence would make filing a bill a gamble on
+            // whether anyone happened to be online.
+            prop.status = "lapsed";
           }
 
           // Post referendum resolution to the feed!
           const creator = s.citizens[prop.creator];
           const creatorLabel = creator ? `@${creator.username}` : "a citizen";
-          const passed = prop.status === "enacted";
+
+          const record =
+            count.outcome === "enacted"
+              ? `📜 ENACTED: "${prop.title}"\n\n` +
+                `Carried ${count.yes} to ${count.no} on a quorum of ${count.quorum}.\n\n${effect}\n\n` +
+                `Proposer ${creatorLabel} is awarded 200 MMC and 50 Aura.`
+              : count.outcome === "failed"
+                ? `📜 DEFEATED: "${prop.title}"\n\n` +
+                  `Failed ${count.yes} to ${count.no}. The bill does not enter the constitution.`
+                : `📜 LAPSED: "${prop.title}"\n\n` +
+                  `${count.cast} vote${count.cast === 1 ? "" : "s"} cast against a quorum of ${count.quorum}. ` +
+                  `The assembly was not constituted and the bill falls without a decision.\n\n` +
+                  `No penalty is recorded against ${creatorLabel}. It may be tabled again.`;
 
           // The court records what the assembly decided. It has no opinion about
           // it — this used to carry fifty lines of AI ministers reacting in
@@ -202,12 +224,7 @@ export const governance = {
           s.posts.unshift({
             id: "post_" + Math.random().toString(36).slice(2, 10),
             author: CONSTITUTIONAL_COURT,
-            text: passed
-              ? `📜 ENACTED: "${prop.title}"\n\n` +
-                `Carried ${prop.yesVotes.length} to ${prop.noVotes.length}.\n\n${effect}\n\n` +
-                `Proposer ${creatorLabel} is awarded 200 MMC and 50 Aura.`
-              : `📜 DEFEATED: "${prop.title}"\n\n` +
-                `Failed ${prop.yesVotes.length} to ${prop.noVotes.length}. The bill does not enter the constitution.`,
+            text: record,
             image: null,
             up: 0,
             down: 0,

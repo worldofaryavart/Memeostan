@@ -79,7 +79,8 @@ export interface Proposal {
   creator: string; // wallet address
   title: string;
   description: string;
-  status: "draft" | "active" | "passed" | "failed" | "enacted";
+  /** `lapsed` = the assembly never reached quorum; not a defeat, and unpunished. */
+  status: "draft" | "active" | "passed" | "failed" | "enacted" | "lapsed";
   yesVotes: string[]; // citizen addresses
   noVotes: string[]; // citizen addresses
   endsAt: number;

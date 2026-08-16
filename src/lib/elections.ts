@@ -16,10 +16,13 @@ import { getCitizen } from "./citizens";
 import { vibeOf } from "./economy";
 import { createSystemPost } from "./systemPosts";
 import { ELECTION_COMMISSION, isStateAccount } from "./systemAccounts";
+import { currentQuorum, voteWeight } from "./quorum";
 import type { ActiveElection } from "./types";
 
 const ELECTION_DURATION = 5 * 60 * 1000; // 5 minutes for demo/interactive speed
 const CANDIDACY_COST = 50;
+/** What a candidate's whole campaign is worth, at most: two supporters. */
+const MAX_CAMPAIGN_BONUS = 40;
 
 /** The offices citizens are elected to, in order of the support they command. */
 export const OFFICES = [
@@ -123,6 +126,41 @@ export const elections = {
         (addr) => state.citizens[addr] && !isStateAccount(addr)
       );
 
+      const turnout = Object.keys(election.votes).filter(
+        (addr) => !isStateAccount(addr)
+      ).length;
+      const quorum = currentQuorum();
+
+      // An election nobody voted in does not install a government. The same rule
+      // as the assembly, for the same reason: a single citizen must not be able
+      // to appoint the cabinet for everybody. An uncontested ballot still needs
+      // somebody to turn out and say so.
+      if (candidates.length > 0 && turnout < quorum) {
+        state.posts.unshift({
+          id: "post_" + Math.random().toString(36).slice(2, 10),
+          author: ELECTION_COMMISSION,
+          text:
+            `🗳️ ELECTION VOID: turnout of ${turnout} against a quorum of ${quorum}.\n\n` +
+            `${candidates.length} candidate${candidates.length === 1 ? " stood" : "s stood"}, but the ` +
+            `electorate was not constituted. No government has been formed and no office changes hands.\n\n` +
+            `Nominations carry over to the next term.`,
+          image: null,
+          up: 0,
+          down: 0,
+          voters: {},
+          replies: [],
+          at: Date.now(),
+        });
+
+        // Candidates keep their nominations rather than paying the fee again.
+        state.activeElection = {
+          candidates,
+          votes: {},
+          endsAt: Date.now() + ELECTION_DURATION,
+        };
+        return;
+      }
+
       if (candidates.length === 0) {
         state.posts.unshift({
           id: "post_" + Math.random().toString(36).slice(2, 10),
@@ -144,18 +182,30 @@ export const elections = {
         return;
       }
 
-      // 1. Tally support: votes weighted by aura, plus the vibe of your own posts.
+      // 1. Tally support: votes first, virality second.
+      //
+      // Campaign vibe used to be multiplied by ten while a vote was worth raw
+      // aura (~1000), so posts were noise next to ballots. Capping vote weight
+      // at 20 inverted that overnight: a single decent post would have outweighed
+      // every voter in the country. Virality still counts — this is a memeocracy —
+      // but it is capped at what two supporters are worth, so campaigning can
+      // swing a close race and can never win one on its own.
       const support: Record<string, number> = {};
       candidates.forEach((c) => {
-        const candidatePosts = state.posts.filter((p) => p.author === c);
-        support[c] = candidatePosts.reduce((sum, p) => sum + vibeOf(p), 0) * 10;
+        const vibe = state.posts
+          .filter((p) => p.author === c)
+          .reduce((sum, p) => sum + vibeOf(p), 0);
+        support[c] = Math.max(-MAX_CAMPAIGN_BONUS, Math.min(MAX_CAMPAIGN_BONUS, vibe));
       });
 
       Object.entries(election.votes).forEach(([voterAddr, candAddr]) => {
         if (!candidates.includes(candAddr)) return;
         if (isStateAccount(voterAddr)) return; // belt and braces
         const voter = state.citizens[voterAddr];
-        support[candAddr] += voter ? voter.aura : 1000;
+        // Same cap as the assembly: aura is worth up to twice a new citizen's
+        // vote and never more. Raw aura here meant a 9,999-aura citizen could
+        // install a government against nine ordinary ones.
+        support[candAddr] += voter ? voteWeight(voter.aura) : 10;
       });
 
       const sorted = [...candidates].sort((a, b) => (support[b] || 0) - (support[a] || 0));
@@ -197,8 +247,6 @@ export const elections = {
         })
         .filter(Boolean)
         .join("\n");
-
-      const turnout = Object.keys(election.votes).length;
 
       state.posts.unshift({
         id: "post_" + Math.random().toString(36).slice(2, 10),

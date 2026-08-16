@@ -7,8 +7,9 @@
 // stops enforcing. Both directions, against a live server, through the real
 // signed-action API.
 //
-// It takes roughly ten minutes, because it waits out two real referendum
-// deadlines rather than mocking them.
+// It takes fifteen minutes or so, because it waits out two real referendum
+// deadlines rather than mocking them. A bill runs for three minutes plus a
+// minute per citizen of quorum, so the window grows with the population.
 //
 // IT CREATES REAL CITIZENS, POSTS AND LAWS. Run it against a scratch instance,
 // or reset the nation afterwards (npm run nation:reset -- --yes).
@@ -121,7 +122,7 @@ async function until(label, check, attempts = 40) {
 
 async function main() {
   console.log(`probing ${BASE}`);
-  console.log("this waits out two real referendum deadlines — roughly ten minutes\n");
+  console.log("this waits out two real referendum deadlines — fifteen minutes or so\n");
 
   step(1, "two citizens claim passports (a bill needs a proposer and a quorum)");
   const alice = await claim("LawProbeA");
@@ -166,7 +167,7 @@ async function main() {
       const p = s.proposals.find((x) => x.id === billId);
       return p?.status === "enacted" && p.article ? p : null;
     },
-    60
+    100
   );
   const article = enacted.hit.article;
   console.log(`\n    enacted as Article ${article}`);
@@ -209,7 +210,7 @@ async function main() {
   const repealed = await until(
     "repeal",
     (s) => (s.proposals.find((x) => x.id === billId)?.repealedBy ? true : null),
-    60
+    100
   );
   console.log(`\n    Article ${article} struck out`);
 
