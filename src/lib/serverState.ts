@@ -26,7 +26,7 @@ async function stateCollection(): Promise<Collection<Document>> {
   return db.collection("state");
 }
 
-/** Read the nation, seeding a fresh one (AI citizens, starter feed) if absent. */
+/** Read the nation, founding one if absent, and staff any unstaffed office. */
 export async function loadState(): Promise<NationState> {
   const collection = await stateCollection();
   const doc = await collection.findOne({ _id: DOC_ID as never });
@@ -41,8 +41,25 @@ export async function loadState(): Promise<NationState> {
   }
 
   const { _id, ...rest } = doc;
-  return migrate(rest);
+  const state = migrate(rest);
+
+  // bootNation() used to run only when founding a nation from nothing, which
+  // meant a deploy that added a new organ of the state never staffed it on an
+  // existing country — the Treasury and the broadcaster were simply missing, and
+  // posts attributed to them would have had no author record. It is idempotent
+  // (existing offices are left exactly as they are), so it is safe to run on
+  // every read.
+  const before = Object.keys(state.citizens).length;
+  withState(state, () => bootNation());
+  // A no-op world tick declines to commit, so newly staffed offices could sit
+  // unpersisted through an idle stretch. Flagging it makes the next mutation
+  // write them out. Worst case under concurrency is one redundant commit.
+  if (Object.keys(state.citizens).length !== before) staffedOnLastLoad = true;
+
+  return state;
 }
+
+let staffedOnLastLoad = false;
 
 /**
  * Commit under the revision we read at. Returns false when someone else got there
@@ -111,11 +128,14 @@ export async function mutateState<T>(
     const state = await loadState();
     const baseRev = state.rev ?? 0;
 
+    const mustPersistStaffing = staffedOnLastLoad;
+    staffedOnLastLoad = false;
+
     const result = withState(state, () => mutate(state));
 
     // Nothing to persist (rejected, or a no-op world tick): skip the write entirely
     // so idle clients don't generate database churn.
-    if ((result as { commit?: boolean } | null)?.commit === false) {
+    if (!mustPersistStaffing && (result as { commit?: boolean } | null)?.commit === false) {
       return { result, state, committed: false };
     }
 
