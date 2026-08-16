@@ -17,9 +17,11 @@ import { vibeOf } from "./economy";
 import { createSystemPost } from "./systemPosts";
 import { ELECTION_COMMISSION, isStateAccount } from "./systemAccounts";
 import { currentQuorum, voteWeight } from "./quorum";
+import { CLOCK } from "./clock";
 import type { ActiveElection } from "./types";
 
-const ELECTION_DURATION = 5 * 60 * 1000; // 5 minutes for demo/interactive speed
+/** A term of office. See clock.ts — daily, not five-minutely. */
+const ELECTION_DURATION = () => CLOCK.electionTerm;
 const CANDIDACY_COST = 50;
 /** What a candidate's whole campaign is worth, at most: two supporters. */
 const MAX_CAMPAIGN_BONUS = 40;
@@ -38,7 +40,7 @@ function emptyBallot(endsAt: number): ActiveElection {
 export const elections = {
   getElection(): ActiveElection {
     const s = db.get();
-    if (!s.activeElection) return emptyBallot(Date.now() + ELECTION_DURATION);
+    if (!s.activeElection) return emptyBallot(Date.now() + ELECTION_DURATION());
     return s.activeElection;
   },
 
@@ -86,7 +88,7 @@ export const elections = {
     let err: string | undefined;
     db.update((s) => {
       if (!s.activeElection) {
-        s.activeElection = emptyBallot(Date.now() + ELECTION_DURATION);
+        s.activeElection = emptyBallot(Date.now() + ELECTION_DURATION());
       }
       if (s.activeElection.candidates.includes(address)) {
         err = "You are already running!";
@@ -156,7 +158,7 @@ export const elections = {
         state.activeElection = {
           candidates,
           votes: {},
-          endsAt: Date.now() + ELECTION_DURATION,
+          endsAt: Date.now() + ELECTION_DURATION(),
         };
         return;
       }
@@ -178,7 +180,7 @@ export const elections = {
           at: Date.now(),
         });
 
-        state.activeElection = emptyBallot(Date.now() + ELECTION_DURATION);
+        state.activeElection = emptyBallot(Date.now() + ELECTION_DURATION());
         return;
       }
 
@@ -264,7 +266,7 @@ export const elections = {
       });
 
       // 2. Next cycle opens with an empty ballot. Nominations must be filed again.
-      state.activeElection = emptyBallot(Date.now() + ELECTION_DURATION);
+      state.activeElection = emptyBallot(Date.now() + ELECTION_DURATION());
     });
 
     return true;

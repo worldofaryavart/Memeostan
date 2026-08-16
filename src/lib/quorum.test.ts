@@ -10,6 +10,7 @@ import {
 } from "./quorum";
 import { proportionality, PROPORTIONALITY_LIMIT } from "./constitution";
 import { CYBER_POLICE, SUPREME_COURT } from "./systemAccounts";
+import { CLOCK } from "./clock";
 import type { Citizen, NationState, Post } from "./types";
 
 let state: NationState;
@@ -154,8 +155,8 @@ describe("tally — one counting function for the resolver and the UI", () => {
 });
 
 describe("proposalDuration — more people to reach, more time to reach them", () => {
-  it("stays short in a small country", () => {
-    expect(proposalDuration(1)).toBe(4 * 60 * 1000);
+  it("is the base window plus an hour per citizen of quorum", () => {
+    expect(proposalDuration(1)).toBe(CLOCK.proposalBase + CLOCK.proposalPerQuorum);
   });
 
   it("lengthens as quorum rises", () => {
@@ -163,7 +164,11 @@ describe("proposalDuration — more people to reach, more time to reach them", (
   });
 
   it("is capped, so a bill cannot stay open forever", () => {
-    expect(proposalDuration(1_000_000)).toBe(15 * 60 * 1000);
+    expect(proposalDuration(1_000_000)).toBe(CLOCK.proposalMax);
+  });
+
+  it("decides every bill within a day, however large the country", () => {
+    expect(CLOCK.proposalMax).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
   });
 });
 

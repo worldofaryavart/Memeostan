@@ -178,6 +178,22 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
   posting, a two-letter banned word would match every post ever written — one
   referendum should not be able to end the country.
 
+**How fast the country runs:**
+
+- All world timings live in `src/lib/clock.ts`. They used to be demo speeds
+  scattered across six files — three-minute referendums, five-minute elections,
+  two-minute trials. That is the right pace for testing a mechanism and the wrong
+  pace for a country: at three minutes a bill is a novelty you watch resolve, at
+  four hours it is something you come back for.
+- A bill runs **4 hours plus an hour per citizen of quorum**, capped at a day. A
+  term of office is **a day**. A trial runs **2 hours**. The police patrol the
+  last **30 minutes** of feed.
+- `MEMEOSTAN_FAST_CLOCK=1` compresses an hour into a minute, for local
+  development and the end-to-end probes. One knob, so the two modes cannot drift
+  apart. Rate-limit windows are deliberately *not* scaled — "three posts in five
+  minutes" is a rule citizens read, and a rule whose meaning changes with an
+  environment variable is not a rule.
+
 **How the assembly is bounded:**
 
 - **Quorum scales with the population**, as its square root: 1 citizen needs 1

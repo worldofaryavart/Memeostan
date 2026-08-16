@@ -21,6 +21,7 @@ import { ledger } from "./ledger";
 import { adjustAura, getCitizen } from "./citizens";
 import { createPost, addReply } from "./posts";
 import { SUPREME_COURT, isStateAccount } from "./systemAccounts";
+import { CLOCK } from "./clock";
 import type { Trial } from "./types";
 
 export const SUPREME_COURT_ADDRESS = SUPREME_COURT;
@@ -36,7 +37,7 @@ export function fileCharge(
   defendant: string,
   charge: string,
   description: string,
-  durationMs: number = 120000, // 2 minutes default for snappy testing
+  durationMs: number = CLOCK.trialDuration,
   ids: { trialId?: string; postId?: string } = {}
 ): { ok: boolean; reason?: string; trialId?: string } {
   const def = getCitizen(defendant);

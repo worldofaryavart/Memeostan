@@ -11,6 +11,11 @@
 // deadlines rather than mocking them. A bill runs for three minutes plus a
 // minute per citizen of quorum, so the window grows with the population.
 //
+// REQUIRES A FAST CLOCK. The real world runs referendums over hours and
+// trials over hours; against a server without MEMEOSTAN_FAST_CLOCK=1 this
+// probe will sit there for most of a day. Set it on the instance you point
+// this at (see src/lib/clock.ts).
+//
 // IT CREATES REAL CITIZENS, POSTS AND LAWS. Run it against a scratch instance,
 // or reset the nation afterwards (npm run nation:reset -- --yes).
 

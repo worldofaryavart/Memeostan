@@ -24,6 +24,7 @@
 
 import { db } from "./db";
 import { CONSTITUTIONAL_COURT, isStateAccount } from "./systemAccounts";
+import { CLOCK } from "./clock";
 import type { LawRule, Post, Proposal } from "./types";
 
 /** Words that constitute Logic. Seeded as Article 1; repealable like anything else. */
@@ -40,7 +41,8 @@ export const LOGIC_MARKERS = [
   "the data",
 ];
 
-export const SPAM_WINDOW_MS = 5 * 60 * 1000;
+/** Rate-limit articles are measured over a fixed window — see clock.ts. */
+export const SPAM_WINDOW_MS = CLOCK.spamWindow;
 
 // ── the founding articles ────────────────────────────────────────────────────
 

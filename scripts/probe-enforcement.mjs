@@ -9,6 +9,11 @@
 //
 // It takes a few minutes — it is waiting on real trial deadlines, not mocks.
 //
+// REQUIRES A FAST CLOCK. The real world runs referendums over hours and
+// trials over hours; against a server without MEMEOSTAN_FAST_CLOCK=1 this
+// probe will sit there for most of a day. Set it on the instance you point
+// this at (see src/lib/clock.ts).
+//
 // IT CREATES A REAL CITIZEN AND REAL POSTS. Run it against a scratch instance,
 // or reset the nation afterwards (npm run nation:reset -- --yes). It earned its
 // place in the repo by catching a bug unit tests could not see: the world clock

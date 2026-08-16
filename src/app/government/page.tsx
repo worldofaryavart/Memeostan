@@ -8,7 +8,8 @@ import { elections } from "@/lib/elections";
 import { ledger } from "@/lib/ledger";
 import { act, newActionId } from "@/lib/actionClient";
 import { activeLaws, describeRule } from "@/lib/constitution";
-import { currentQuorum, electorate, tally } from "@/lib/quorum";
+import { currentQuorum, electorate, proposalDuration, tally } from "@/lib/quorum";
+import { CLOCK, describeDuration } from "@/lib/clock";
 import type { LawRule, LawRuleType } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
@@ -191,8 +192,9 @@ export default function GovernmentPage() {
                 Filing a proposal burns <strong style={{ color: "var(--bad)" }}>100 MMC</strong> to filter low-effort spam. If the referendum passes, you earn <strong style={{ color: "var(--good)" }}>+200 MMC</strong> and <strong style={{ color: "var(--purple)" }}>+50 Aura</strong>!
               </p>
               <p className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>
-                Quorum is <strong>{quorum}</strong> of {voters} citizen{voters === 1 ? "" : "s"}.
-                A bill with fewer votes than that lapses without a decision — and
+                Quorum is <strong>{quorum}</strong> of {voters} citizen{voters === 1 ? "" : "s"},
+                and a bill stays open for <strong>{describeDuration(proposalDuration())}</strong>.
+                A bill with fewer votes than quorum lapses without a decision — and
                 costs the proposer no Aura, because nobody rejected it.
               </p>
               
@@ -510,9 +512,9 @@ export default function GovernmentPage() {
             <div className="paper p-cyan pin-center">
               <span className="card-title">🗳️ ELECTION BOOTH</span>
               <div className="hand" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
-                elections cycle every 5 minutes. citizens only — the civil service
-                neither stands nor votes. aura weights your vote, up to twice a new
-                citizen's and never more.
+                a term of office lasts {describeDuration(CLOCK.electionTerm)}. citizens
+                only — the civil service neither stands nor votes. aura weights your
+                vote, up to twice a new citizen's and never more.
               </div>
               <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
                 Turnout of <strong>{quorum}</strong> required, or the ballot is void

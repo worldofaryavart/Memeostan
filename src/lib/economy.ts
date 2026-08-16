@@ -5,6 +5,7 @@
 import { db } from "./db";
 import { ledger } from "./ledger";
 import { isStateAccount } from "./systemAccounts";
+import { CLOCK } from "./clock";
 import type { Post, EconomicEvent, EconomicEventType } from "./types";
 
 // MMC earned/burned per action. The whole economy is tuned from here.
@@ -202,7 +203,7 @@ export function applyEvent(event: EconomicEvent): void {
   } else if (event.type === "tax_hike") {
     // Set elevated transfer fee flag for 10 minutes
     db.update((st) => {
-      st.taxHikeEndsAt = Date.now() + 10 * 60 * 1000;
+      st.taxHikeEndsAt = Date.now() + CLOCK.taxHikeDuration;
       const ev = st.economicEvents?.find((e) => e.id === event.id);
       if (ev) ev.resolved = true;
     });

@@ -15,7 +15,8 @@
 import { db } from "@/lib/db";
 import { addReply, createPost, getPost } from "@/lib/posts";
 import { checkAndFireEvents, tuneRatesAI, vibeOf } from "@/lib/economy";
-import { activeLaws, violationOf } from "@/lib/constitution";
+import { violationOf } from "@/lib/constitution";
+import { CLOCK } from "@/lib/clock";
 import {
   SUPREME_COURT_ADDRESS,
   fileCharge,
@@ -50,7 +51,7 @@ export interface Offence {
   basis: string;
 }
 
-const PATROL_WINDOW_MS = 5 * 60 * 1000;
+
 
 /**
  * What the Cyber Police found on patrol.
@@ -71,7 +72,7 @@ export function patrol(limit = 1): Offence[] {
   const found: Offence[] = [];
 
   const recent = state.posts.filter(
-    (p) => p.at >= now - PATROL_WINDOW_MS && !isStateAccount(p.author)
+    (p) => p.at >= now - CLOCK.patrolWindow && !isStateAccount(p.author)
   );
 
   const alreadyCited = (post: Post) =>
@@ -106,7 +107,7 @@ export function applyCitation(offence: Offence, text: string): void {
 
 // ── prosecution ──────────────────────────────────────────────────────────────
 
-const RETRIAL_COOLDOWN_MS = 5 * 60 * 1000;
+
 
 /**
  * The state prosecutes a citizen the police already warned.
@@ -133,14 +134,14 @@ export function prosecuteWarnedCitizens(): boolean {
     const citation = post.replies.find((r) => r.author === CYBER_POLICE);
     if (!citation) return false;
     // Give the citizen a moment between the warning and the charge.
-    return now - citation.at > 60_000;
+    return now - citation.at > CLOCK.citationGrace;
   });
 
   for (const post of cited) {
     const defendant = post.author;
 
     const recentlyTried = (state.trials || []).some(
-      (t) => t.defendant === defendant && now - t.at < RETRIAL_COOLDOWN_MS
+      (t) => t.defendant === defendant && now - t.at < CLOCK.retrialCooldown
     );
     if (recentlyTried) continue;
 

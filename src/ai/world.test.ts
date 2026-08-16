@@ -3,6 +3,7 @@ import { freshState, migrate, withState } from "@/lib/db";
 import { patrol, population, prosecuteWarnedCitizens } from "./world";
 import { pendingVerdicts } from "@/lib/judiciary";
 import { activeLaws, enact, seedFoundingArticles } from "@/lib/constitution";
+import { CLOCK } from "@/lib/clock";
 import {
   CONSTITUTIONAL_COURT,
   CYBER_POLICE,
@@ -40,15 +41,16 @@ function post(author: string, overrides: Partial<Post> = {}): Post {
   };
 }
 
-function citation(minutesAgo = 5) {
-  return { author: CYBER_POLICE, text: "⚠️ CITATION", at: Date.now() - minutesAgo * 60_000 };
+/** A citation old enough to have gone unanswered, by the clock's own reckoning. */
+function citation(ageMs = CLOCK.citationGrace * 2) {
+  return { author: CYBER_POLICE, text: "⚠️ CITATION", at: Date.now() - ageMs };
 }
 
 /** A post that genuinely breaks Article 1, already cited. */
-function unlawful(author: string, citedMinutesAgo = 5): Post {
+function unlawful(author: string, citedAgeMs = CLOCK.citationGrace * 2): Post {
   return post(author, {
     text: "actually that is incorrect",
-    replies: [citation(citedMinutesAgo)],
+    replies: [citation(citedAgeMs)],
   });
 }
 
@@ -132,7 +134,7 @@ describe("patrol — the police need a rule they can point at", () => {
 
   it("ignores posts that have aged out of the patrol window", () => {
     state.posts = [
-      post(ALICE, { text: "actually no", at: Date.now() - 30 * 60_000 }),
+      post(ALICE, { text: "actually no", at: Date.now() - CLOCK.patrolWindow - 60_000 }),
     ];
     expect(run(() => patrol())).toEqual([]);
   });
@@ -159,6 +161,11 @@ describe("prosecuteWarnedCitizens — a charge has to trace back to a warning", 
 
   it("gives the citizen a moment between the warning and the charge", () => {
     state.posts = [unlawful(ALICE, 0)];
+    expect(run(prosecuteWarnedCitizens)).toBe(false);
+  });
+
+  it("still holds off just inside the grace period", () => {
+    state.posts = [unlawful(ALICE, CLOCK.citationGrace / 2)];
     expect(run(prosecuteWarnedCitizens)).toBe(false);
   });
 

@@ -5,6 +5,7 @@ import { useNation } from "@/components/useNation";
 import { me, allCitizens, getCitizen } from "@/lib/citizens";
 import { getActiveTrials, getResolvedTrials } from "@/lib/judiciary";
 import { act, newActionId } from "@/lib/actionClient";
+import { CLOCK, describeDuration } from "@/lib/clock";
 import { ledger } from "@/lib/ledger";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
@@ -451,7 +452,7 @@ export default function CourtPage() {
                   <strong>Innocent Verdict Compensation</strong>: If acquitted, the defendant receives <strong>25 MMC</strong> compensation and <strong>+50 Aura</strong>.
                 </li>
                 <li style={{ marginTop: 8 }}>
-                  <strong>Trial Duration</strong>: Mock trials run for exactly <strong>2 minutes</strong> to keep the courtroom moving.
+                  <strong>Trial Duration</strong>: A trial runs for <strong>{describeDuration(CLOCK.trialDuration)}</strong>, long enough for a jury to assemble. If no citizen votes, the bench rules alone on the record and the penalty is halved.
                 </li>
               </ul>
               {citizen && (

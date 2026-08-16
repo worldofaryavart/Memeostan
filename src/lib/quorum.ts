@@ -18,6 +18,7 @@
 
 import { db } from "./db";
 import { isStateAccount } from "./systemAccounts";
+import { CLOCK } from "./clock";
 import type { Proposal } from "./types";
 
 /** Reputation is worth this much of a vote at most. */
@@ -25,9 +26,6 @@ const MAX_VOTE_WEIGHT = 20;
 /** What a citizen at the starting aura of 1000 is worth. */
 const BASE_VOTE_WEIGHT = 10;
 
-const BASE_DURATION_MS = 3 * 60 * 1000;
-const PER_QUORUM_MS = 60 * 1000;
-const MAX_DURATION_MS = 15 * 60 * 1000;
 
 /** Everyone entitled to vote. The civil service is not. */
 export function electorate(): number {
@@ -66,7 +64,10 @@ export function voteWeight(aura: number): number {
 
 /** How long a bill stays open. More citizens to reach means more time to reach them. */
 export function proposalDuration(population = electorate()): number {
-  return Math.min(MAX_DURATION_MS, BASE_DURATION_MS + quorumFor(population) * PER_QUORUM_MS);
+  return Math.min(
+    CLOCK.proposalMax,
+    CLOCK.proposalBase + quorumFor(population) * CLOCK.proposalPerQuorum
+  );
 }
 
 export type Outcome = "enacted" | "failed" | "lapsed";
