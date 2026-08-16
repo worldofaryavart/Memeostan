@@ -20,6 +20,7 @@
 // and the database write happen outside the mutation window.
 
 import { isStateAccount } from "./systemAccounts";
+import { CLOCK } from "./clock";
 import type { NationState } from "./types";
 
 const NS = "memeostan:v1";
@@ -34,11 +35,7 @@ export function freshState(): NationState {
     posts: [],
     founded: null,
     proposals: [],
-    activeElection: {
-      candidates: [], // nobody has stood yet — see EMPTY_BALLOT below
-      votes: {},
-      endsAt: Date.now() + 5 * 60 * 1000, // 5 minute elections
-    },
+    activeElection: EMPTY_BALLOT(),
     gdbHistory: [],
     purchasedCosmetics: {},
     economicEvents: [],
@@ -53,10 +50,16 @@ export function freshState(): NationState {
 // An election opens with nobody on the ballot. It used to open with three AI
 // candidates already standing, which meant a government existed before a single
 // citizen did.
+//
+// The term length comes from clock.ts rather than being written here. It was a
+// hardcoded five minutes, which quietly survived the move to real time: every
+// freshly founded nation opened with a ballot closing in five minutes while
+// elections.ts believed terms lasted a day. The cold-start audit caught it on a
+// brand new country, which is the only place it was visible.
 const EMPTY_BALLOT = () => ({
   candidates: [] as string[],
   votes: {} as Record<string, string>,
-  endsAt: Date.now() + 5 * 60 * 1000,
+  endsAt: Date.now() + CLOCK.electionTerm,
 });
 
 export function migrate(input: unknown): NationState {
