@@ -4,6 +4,7 @@
 
 import { db } from "./db";
 import { ledger } from "./ledger";
+import { isStateAccount } from "./systemAccounts";
 import type { Post, EconomicEvent, EconomicEventType } from "./types";
 
 // MMC earned/burned per action. The whole economy is tuned from here.
@@ -146,8 +147,10 @@ function fireEvent(
 /** Apply an event's mechanical effects to the ledger and citizens. */
 export function applyEvent(event: EconomicEvent): void {
   const s = db.get();
+  // Booms and crashes land on citizens. The state is not a market participant —
+  // airdropping the Supreme Court would be funny once and wrong forever.
   const citizenAddresses = Object.keys(s.citizens).filter(
-    (addr) => !s.citizens[addr].isAI
+    (addr) => !isStateAccount(addr)
   );
 
   if (event.type === "crash") {

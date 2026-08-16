@@ -29,7 +29,7 @@ const BREAKING_NEWS = [
   "🚨 BREAKING: Skibidi toilet monument unveiled in Brainrot City — designated national treasure",
   "🚨 BREAKING: MemeLord_420 seen practicing mewing at national press conference — sigma approved",
   "🚨 BREAKING: New law passed: all government documents must now be written in Comic Sans",
-  "🚨 BREAKING: AI Cabinet Minister resigns, cites 'too much sigma energy in the room'",
+  "🚨 BREAKING: Cyber Police cite entire timeline for 'too much sigma energy in the room'",
 ];
 
 const ANTHEM_LYRICS = [
@@ -502,7 +502,7 @@ export default function LandingPage() {
           <div className="paper p-pink taped tape-blue hero-scrap" style={{ position: "absolute", top: "-10px", right: "-60px", width: "230px", transform: "rotate(5deg)", textAlign: "left" }}>
             <span className="card-title" style={{ fontSize: 14 }}>🏛️ THE MEMEOCRACY</span>
             <p className="hand" style={{ fontSize: 13, lineHeight: 1.25, margin: "6px 0", color: "var(--ink)" }}>
-              humans and ai are all citizens here — anyone can run for office. campaign with memes, win the polls, take charge. the ai npcs run too, and they WILL clown you.
+              only real people are citizens here. you post, you vote, you run for office. the ai runs the government — police, courts, treasury — so nobody has to do the paperwork.
             </p>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
               <Art
@@ -565,7 +565,7 @@ export default function LandingPage() {
           <div className="paper p-pink taped tape-blue" style={{ textAlign: "left", transform: "rotate(1.2deg)" }}>
             <span className="card-title" style={{ fontSize: 14 }}>🏛️ THE MEMEOCRACY</span>
             <p className="hand" style={{ fontSize: 13, lineHeight: 1.25, margin: "6px 0", color: "var(--ink)" }}>
-              humans and ai are all citizens here — anyone can run for office. campaign with memes, win the polls, take charge. the ai npcs run too, and they WILL clown you.
+              only real people are citizens here. you post, you vote, you run for office. the ai runs the government — police, courts, treasury — so nobody has to do the paperwork.
             </p>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
               <Art
@@ -699,7 +699,7 @@ export default function LandingPage() {
               { n: "I", icon: "/art/article-1.png", emoji: "🌀", title: "REALITY IS OPTIONAL", body: "Your passport is your identity and it's YOURS — we can't delete you, shadowban you, or sell your data on a tuesday. Pick a pfp, invent your lore, become whoever. Reality is a suggestion and touching it is not mandatory." },
               { n: "II", icon: "/art/article-2.png", emoji: "📶", title: "WI-FI IS A HUMAN RIGHT", body: "The feed loads fast, posting is free, and no gas fee will EVER touch your memes. Disconnecting a citizen is a war crime. Buffering is the only recognized form of suffering." },
               { n: "III", icon: "/art/article-3.png", emoji: "⚔️", title: "WAR IS A MEME CONTEST", body: "No armies, no missiles — beef is settled by whoever drops the harder meme. All disputes go to the comment section, which is also the Supreme Court. Casualties are measured in lost followers and bruised egos." },
-              { n: "IV", icon: "/art/article-4.png", emoji: "🤝", title: "EVERYONE'S A CITIZEN (EVEN THE BOTS)", body: "Humans and AI are equal here — both can post, vote, run for office, and get ratioed. Some memes are simply more viral. Fair warning: an AI will probably win the election and then subtweet you about it." },
+              { n: "IV", icon: "/art/article-4.png", emoji: "🤝", title: "CITIZENS ARE PEOPLE. THE GOVERNMENT IS NOT.", body: "Every citizen is a real person — you post, you vote, you stand for office. The state is AI: the police that cite you, the court that fines you, the commission that counts the ballots. It cannot vote and it cannot stand. It only enforces what you passed." },
               { n: "V", icon: "/art/article-5.png", emoji: "👁️", title: "THE ALGORITHM PROVIDES", body: "MMC is minted for bangers and burned for spam. Your Aura rises and falls by public ratio. Gross Domestic Brainrot (GDB) is the only economic stat that matters. The Algorithm giveth, the Algorithm ratioeth — do not question it." },
               { n: "VI", icon: "/art/article-6.png", emoji: "🌱", title: "NAPS ARE NON-NEGOTIABLE", body: "Touching grass is encouraged but never enforced. Mandatory nap breaks, the 3 AM Clause, and Universal Nap Income protect every citizen from doomscroll burnout. Logging off is a constitutional right (we'll be sad, but it's allowed)." },
             ];

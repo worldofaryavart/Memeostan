@@ -1,15 +1,22 @@
-// moonshot.ts — the LLM half of the AI citizens. Server-only.
+// moonshot.ts — the state's voice. Server-only.
+//
+// The LLM budget used to be spent on bot citizens shitposting into the feed.
+// It is now spent on the offices that act on you: the warning the Cyber Police
+// leaves on your post, the verdict the Supreme Court hands down, the bulletin
+// the broadcaster reads. Same ceiling, and the output is attached to something
+// that actually happened to you rather than being timeline filler.
 //
 // Kept separate from the world simulation for one reason: these calls are async
 // and cost money, while state mutation must be synchronous (see db.ts). So a beat
 // is always "talk to the model first, then apply the result in one atomic write."
 //
-// Spend control lives here too. Every AI citizen has a daily token budget, and
-// budgets are only ever *reported* by this module — they're committed to state by
-// the caller inside its own transaction.
+// Every generator here has a deterministic fallback. The state is not allowed to
+// go silent because an API call failed — a citizen who was fined has to be told
+// why, key or no key.
 
-import { CANDIDATES_PERSONAS } from "./personas";
-import type { Citizen, Post } from "@/lib/types";
+import { stateOrgan } from "@/lib/systemAccounts";
+import type { Citizen, Post, Trial } from "@/lib/types";
+import type { Offence } from "./world";
 
 const MODEL = "moonshot-v1-8k";
 const ENDPOINT = "https://api.moonshot.ai/v1/chat/completions";
@@ -20,80 +27,60 @@ export interface Generation {
   tokensUsed: number;
 }
 
-const FACTION_DESCRIPTIONS: Record<string, string> = {
-  Sigma:
-    "Hyper-masculine, obsessed with fitness, gym grind, mewing, aura points, and morning cold plunges. Speaks in a commanding, disciplined, 'sigma grindset' tone, looking down on napping and NPC behavior.",
-  NPC: "Obsessed with coziness, sleep, blankets, simple routines, and snack breaks. Speaks with calm, relaxed, or sleepy vibes. Peaceful and anti-stress.",
-  Rizzler:
-    "Obsessed with charisma, charm, social media popularity, fashion, and 'rizz'. Speaks with high confidence, rating others' styles, and using terms like 'rizzler', 'aura', and 'drip'.",
-  "Brainrot Veteran":
-    "Obsessed with modern internet slang, Gen Alpha brainrot memes (Skibidi, Fanum Tax, Gyatt, Livvy Dunne, Baby Gronk, Mewing). Speaks in pure, cooked internet slang.",
-  "Meme Lord":
-    "Sarcastic, chaotic, loves shitposting, ironic memes, and internet culture. Speaks in chaotic, humorous, and highly unpredictable ways, trying to trigger a reaction.",
-};
-
-function personalityOf(citizen: Citizen): string {
-  const persona = CANDIDATES_PERSONAS.find((p) => p.address === citizen.address);
-  return (
-    persona?.personalityDesc ||
-    citizen.personalityDesc ||
-    FACTION_DESCRIPTIONS[citizen.faction] ||
-    "A regular internet citizen posting memes."
-  );
-}
-
-/** How many tokens this citizen has left today. Pure read — commits nothing. */
-export function remainingBudget(citizen: Citizen): number {
-  const limit = citizen.tokenLimit ?? DEFAULT_TOKEN_LIMIT;
-  const lastReset = citizen.lastTokensResetAt ?? 0;
+/** How many tokens this office has left today. Pure read — commits nothing. */
+export function remainingBudget(organ: Citizen): number {
+  const limit = organ.tokenLimit ?? DEFAULT_TOKEN_LIMIT;
+  const lastReset = organ.lastTokensResetAt ?? 0;
   const sameDay = new Date(lastReset).toDateString() === new Date().toDateString();
-  const used = sameDay ? citizen.dailyTokensUsed ?? 0 : 0;
+  const used = sameDay ? organ.dailyTokensUsed ?? 0 : 0;
   return Math.max(0, limit - used);
 }
 
 /**
- * Charge tokens against a citizen's daily budget. Must be called inside a state
- * mutation — it edits the citizen record it's handed.
+ * Charge tokens against an office's daily budget. Must be called inside a state
+ * mutation — it edits the record it's handed.
  */
-export function chargeTokens(citizen: Citizen, tokens: number): void {
+export function chargeTokens(organ: Citizen, tokens: number): void {
   const today = new Date().toDateString();
-  const lastReset = new Date(citizen.lastTokensResetAt ?? 0).toDateString();
+  const lastReset = new Date(organ.lastTokensResetAt ?? 0).toDateString();
   if (lastReset !== today) {
-    citizen.dailyTokensUsed = 0;
-    citizen.lastTokensResetAt = Date.now();
+    organ.dailyTokensUsed = 0;
+    organ.lastTokensResetAt = Date.now();
   }
-  if (citizen.tokenLimit === undefined) citizen.tokenLimit = DEFAULT_TOKEN_LIMIT;
-  citizen.dailyTokensUsed = (citizen.dailyTokensUsed ?? 0) + Math.max(0, tokens);
+  if (organ.tokenLimit === undefined) organ.tokenLimit = DEFAULT_TOKEN_LIMIT;
+  organ.dailyTokensUsed = (organ.dailyTokensUsed ?? 0) + Math.max(0, tokens);
 }
 
 export function isConfigured(): boolean {
   return Boolean(process.env.MOONSHOT_API_KEY?.trim());
 }
 
-const CHARACTER_RULES = `Guidelines:
-1. Keep it extremely short, unhinged, and punchy (1 sentence max, or even a few words).
-2. Write in a chronically online, chaotic shitposting style. Use lowercase, abbreviations (fr, no cap, ngmi, based, bruh, cooked, rizz, aura, ngl), and slang naturally.
-3. Do NOT include markdown bolding, hashtags, introductions, or meta-commentary.
-4. Speak directly as your character. Stay 100% in character!`;
+const CONTEXT = `Memeostan is a small internet nation. Its citizens are real people.
+Its government — the police, the courts, the election commission, the treasury, the
+broadcaster — is run by AI, because nobody wants to do the paperwork.
 
-function profileBlock(citizen: Citizen): string {
-  return `Your character profile:
-- Name: ${citizen.username}
-- Handle: ${citizen.handle || "@" + citizen.username.toLowerCase()}
-- Faction: ${citizen.faction}
-- Cabinet Office: ${citizen.running || "None"}
-- Political Party: ${citizen.party || "Independent"}
-- Personality Description: ${personalityOf(citizen)}
+The constitution bans logic in public spaces. The currency is MemeCoin (MMC). The
+national output measure is Gross Domestic Brainrot (GDB). All of this is treated by
+the state with complete, humourless sincerity.`;
 
-Context:
-Memeostan is a decentralized virtual nation governed by "Memeocracy" — laws passed by likes, leaders chosen by virality, and GDP measured in Gross Domestic Brainrot (GDB). MemeCoin (MMC) is the closed-loop currency.
-Logic is strictly banned in public spaces, and everything is based on "vibes".
+const HOUSE_STYLE = `Style rules:
+1. You are an institution, not a personality. Never use first-person plural cheerleading, emoji spam, or internet slang.
+2. Be brief: two sentences at most.
+3. The comedy is that you are entirely sincere about something absurd. Never wink at it, never explain the joke, never use the words "lol", "haha", or "just kidding".
+4. No markdown, no hashtags, no preamble. Output only what the office would say.`;
 
-CRITICAL RULE:
-Ban all corporate assistant tone, formal grammar, and polite chatbot framing. Do NOT start with "As a..." or "As the minister...". Do not explain your joke. You must sound like a chaotic, chronically online internet degenerate shitposter on Twitter/X, Reddit, or Discord.`;
+function officeBlock(address: string): string {
+  const organ = stateOrgan(address);
+  if (!organ) return "";
+  return `You are the ${organ.office} of Memeostan, posting as ${organ.handle}.
+Register: ${organ.voice}`;
 }
 
-async function complete(systemPrompt: string, userPrompt: string): Promise<Generation> {
+async function complete(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 150
+): Promise<Generation> {
   const apiKey = process.env.MOONSHOT_API_KEY;
   if (!apiKey?.trim()) throw new Error("MOONSHOT_API_KEY is not defined.");
 
@@ -109,8 +96,10 @@ async function complete(systemPrompt: string, userPrompt: string): Promise<Gener
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 1.0,
-      max_tokens: 150,
+      // Lower than the old 1.0. An institution should sound the same on Tuesday
+      // as it did on Monday; that consistency is what makes it read as a state.
+      temperature: 0.7,
+      max_tokens: maxTokens,
     }),
   });
 
@@ -130,92 +119,91 @@ async function complete(systemPrompt: string, userPrompt: string): Promise<Gener
   return { text, tokensUsed };
 }
 
-export async function generateCampaignPost(citizen: Citizen): Promise<Generation> {
-  const systemPrompt = `You are playing the role of an AI citizen in the virtual nation of Memeostan.
-${profileBlock(citizen)}
+// ── the Cyber Police issues a citation ───────────────────────────────────────
 
-Instruction:
-Write a new social media post (like on X/Twitter or Reddit) for your feed.
-It could be about:
-1. Your faction vibes, memes, or daily routine (e.g. promoting naps, napping rights, cold plunges, gym grind, doge wisdom, or rizz).
-2. Your cabinet role (if you have one) or political stance.
-3. Commenting on the current state of GDB (Gross Domestic Brainrot) or MemeCoin.
-
-${CHARACTER_RULES}`;
-
-  return complete(systemPrompt, "Write a short in-character post.");
+export function fallbackCitation(offence: Offence): string {
+  return (
+    `⚠️ CYBER POLICE CITATION — ${offence.article}\n\n` +
+    `Offence: ${offence.charge}\n${offence.basis}\n\n` +
+    `This is a formal warning. A citation left unanswered is referred to the Supreme Court.`
+  );
 }
 
-export async function generateReply(
-  citizen: Citizen,
-  post: Pick<Post, "text" | "author">,
-  postVibe: number,
-  authorName?: string
+export async function generateCitation(
+  offence: Offence,
+  post: Pick<Post, "text">,
+  defendantName: string
 ): Promise<Generation> {
-  const vibeStatus =
-    postVibe > 0
-      ? "banger (positive vibe, people love it)"
-      : postVibe < 0
-        ? "cringe (negative vibe, ratioed, people dislike it)"
-        : "mid (neutral, average, unvoted)";
+  const systemPrompt = `${CONTEXT}
 
-  const systemPrompt = `You are playing the role of an AI citizen in the virtual nation of Memeostan.
-${profileBlock(citizen)}
+${officeBlock("0xai_cyberpolice000000000000000000police")}
 
-Instruction:
-You are replying to a post by citizen "${authorName || post.author}".
-The post vibe is currently: ${vibeStatus}.
-The post content is:
-"${post.text || ""}"
+You are issuing a formal citation to a citizen for a post. State the article and the
+offence, say plainly what they did, and warn them once. You are polite and completely
+immovable.
 
-Write a reply to this post in your character's voice.
-${CHARACTER_RULES}`;
+${HOUSE_STYLE}`;
 
-  return complete(systemPrompt, `Write your reply to: "${post.text}"`);
+  const userPrompt = `Citizen: @${defendantName}
+Article: ${offence.article}
+Offence: ${offence.charge}
+Basis: ${offence.basis}
+Their post: "${(post.text || "").slice(0, 300)}"
+
+Write the citation.`;
+
+  return complete(systemPrompt, userPrompt, 120);
 }
 
-export interface SpawnedPersona {
-  username: string;
-  faction: string;
-  pfp: string;
-  party: string;
-  personalityDesc: string;
+// ── the Supreme Court hands down a verdict ───────────────────────────────────
+
+export function fallbackVerdict(charge: string, isGuilty: boolean): string {
+  return isGuilty
+    ? `The Court finds the charge of ${charge} proven. The penalty is entered against the defendant's account.`
+    : `The Court finds the charge of ${charge} unproven. The defendant is acquitted and compensated.`;
 }
 
-export async function generateNewCitizen(): Promise<{
-  persona: SpawnedPersona;
-  tokensUsed: number;
-}> {
-  const systemPrompt = `You are the AI Demographics Bureau of the virtual nation of Memeostan.
-Your job is to spawn a brand new AI citizen.
-Generate a JSON object with:
-1. "username": A funny, unique internet username (e.g. "SkibidiStyler", "WaffleWarrior", "MewingMaster", "RizzGod").
-2. "faction": Pick one: "Sigma", "NPC", "Rizzler", "Brainrot Veteran", "Meme Lord".
-3. "pfp": A single emoji representing their profile picture (e.g. 🐸, 🗿, 👽, 🤡, 😴, 🐀, 🦖).
-4. "party": A funny political party name (e.g. "United Rizz Federation", "Global Brainrot Party", "Nap Party", "Skibidi Doo Party").
-5. "personalityDesc": A 1-2 sentence description of their personality, speech style, and vocab focus (matching their faction).
+export async function generateVerdict(
+  trial: Pick<Trial, "charge" | "description">,
+  defendantName: string,
+  isGuilty: boolean,
+  benchVerdict: boolean
+): Promise<Generation> {
+  const systemPrompt = `${CONTEXT}
 
-Return ONLY the JSON string. Do not wrap in markdown or backticks.`;
+${officeBlock("0xai_supremecourt0000000000000000court0")}
 
-  const { text, tokensUsed } = await complete(systemPrompt, "Spawn a new citizen JSON.");
+You are delivering a verdict. State the finding and the reasoning in one or two
+sentences. You take a genuinely stupid charge completely seriously. You never
+editorialise about the law itself — you apply it.
 
-  let content = text;
-  if (content.startsWith("```")) {
-    content = content.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-  }
-  const parsed = JSON.parse(content) as Partial<SpawnedPersona>;
+${HOUSE_STYLE}`;
 
-  const validFactions = ["Sigma", "NPC", "Rizzler", "Brainrot Veteran", "Meme Lord"];
-  const faction = validFactions.includes(parsed.faction || "") ? parsed.faction! : "Meme Lord";
+  const userPrompt = `Defendant: @${defendantName}
+Charge: ${trial.charge}
+Case: ${trial.description.slice(0, 400)}
+Finding: ${isGuilty ? "GUILTY" : "INNOCENT"}
+${benchVerdict ? "No citizen sat on the jury. You are ruling from the bench alone." : "A jury of citizens returned this finding."}
 
-  return {
-    persona: {
-      username: (parsed.username || "MysteryNPC").slice(0, 24),
-      faction,
-      pfp: (parsed.pfp || "🫠").slice(0, 8),
-      party: (parsed.party || "Global Brainrot Party").slice(0, 60),
-      personalityDesc: (parsed.personalityDesc || "A regular AI citizen.").slice(0, 400),
-    },
-    tokensUsed,
-  };
+Write the verdict.`;
+
+  return complete(systemPrompt, userPrompt, 140);
+}
+
+// ── the broadcaster reads a bulletin ─────────────────────────────────────────
+
+export async function generateBulletin(
+  headline: string,
+  detail: string
+): Promise<Generation> {
+  const systemPrompt = `${CONTEXT}
+
+${officeBlock("0xai_statebroadcaster0000000000000press")}
+
+You are reading a short item on the state news service. Report it as though it
+carried national consequence.
+
+${HOUSE_STYLE}`;
+
+  return complete(systemPrompt, `Item: ${headline}\nDetail: ${detail}\n\nRead the bulletin.`, 140);
 }

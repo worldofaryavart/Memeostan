@@ -3,11 +3,12 @@
 // Real token mechanics on a tiny append-only ledger:
 //   mint(to)      -> nation prints brainrot into a wallet (earning)
 //   burn(from)    -> tokens destroyed (spam tax / sinks => "meme dilution")
-//   transfer(a,b) -> citizen-to-citizen payment (tips, bribes, campaign funding)
+//   transfer(a,b) -> citizen-to-citizen payment (tips, campaign funding)
 // Every movement writes a tx, so the ledger is auditable and chain-shaped.
 // City rules can apply extra transfer fees on outgoing transfers.
 
 import { db } from "./db";
+import { isStateAccount } from "./systemAccounts";
 import type { NationState, TxType } from "./types";
 
 const TREASURY = "0xtreasury000000000000000000000000treasur"; // nation's mint/burn sink
@@ -57,11 +58,18 @@ export const ledger = {
     return balanceOf(db.get(), address);
   },
 
-  // Total MMC in circulation (everything not held by the treasury).
+  // Total MMC in circulation — what citizens actually hold.
+  //
+  // Every state account is excluded, not just the treasury. The courts and the
+  // commission are endowed so they can pay fines and grants, and counting those
+  // floats as circulating put supply over 150k on an empty country: the rate
+  // tuner read it as an overheating economy and throttled post rewards to the
+  // floor before a single citizen existed. Money sitting in a ministry is not
+  // chasing memes.
   circulatingSupply(): number {
     const state = db.get();
     return Object.entries(state.balances).reduce(
-      (sum, [addr, bal]) => (addr === TREASURY ? sum : sum + bal),
+      (sum, [addr, bal]) => (isStateAccount(addr) ? sum : sum + bal),
       0
     );
   },

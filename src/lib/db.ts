@@ -19,13 +19,14 @@
 // mid-mutation (Node would otherwise interleave two requests). Signature checks
 // and the database write happen outside the mutation window.
 
+import { isStateAccount } from "./systemAccounts";
 import type { NationState } from "./types";
 
 const NS = "memeostan:v1";
 
 export function freshState(): NationState {
   return {
-    version: 4,
+    version: 5,
     rev: 0,
     citizens: {},
     balances: {},
@@ -34,11 +35,7 @@ export function freshState(): NationState {
     founded: null,
     proposals: [],
     activeElection: {
-      candidates: [
-        "0xai_gigachad000000000000000000gigachad",
-        "0xai_spongebob00000000000000000sponge00",
-        "0xai_dogeoracle0000000000000000000doge00",
-      ],
+      candidates: [], // nobody has stood yet — see EMPTY_BALLOT below
       votes: {},
       endsAt: Date.now() + 5 * 60 * 1000, // 5 minute elections
     },
@@ -55,11 +52,14 @@ export function freshState(): NationState {
   };
 }
 
-const DEFAULT_CANDIDATES = [
-  "0xai_gigachad000000000000000000gigachad",
-  "0xai_spongebob00000000000000000sponge00",
-  "0xai_dogeoracle0000000000000000000doge00",
-];
+// An election opens with nobody on the ballot. It used to open with three AI
+// candidates already standing, which meant a government existed before a single
+// citizen did.
+const EMPTY_BALLOT = () => ({
+  candidates: [] as string[],
+  votes: {} as Record<string, string>,
+  endsAt: Date.now() + 5 * 60 * 1000,
+});
 
 export function migrate(input: unknown): NationState {
   const state = (input || {}) as Record<string, any>;
@@ -83,21 +83,11 @@ export function migrate(input: unknown): NationState {
 
   if (!state.version || state.version < 2) {
     state.version = 2;
-    if (!state.activeElection) {
-      state.activeElection = {
-        candidates: [...DEFAULT_CANDIDATES],
-        votes: {},
-        endsAt: (state.founded || Date.now()) + 5 * 60 * 1000,
-      };
-    }
+    if (!state.activeElection) state.activeElection = EMPTY_BALLOT();
   }
 
   if (!state.activeElection || typeof state.activeElection !== "object") {
-    state.activeElection = {
-      candidates: [...DEFAULT_CANDIDATES],
-      votes: {},
-      endsAt: Date.now() + 5 * 60 * 1000,
-    };
+    state.activeElection = EMPTY_BALLOT();
   }
 
   // Legacy Prime Minister badges → Chief Vibes Officer
@@ -131,6 +121,59 @@ export function migrate(input: unknown): NationState {
         c.isAI = true;
       }
     });
+  }
+
+  // v5: AI is the civil service, not the population. Every AI that was not an
+  // organ of the state is decommissioned — the three candidates, the seeded
+  // ghosts and everyone the Demographics Bureau ever invented.
+  //
+  // Their posts stay. Deleting them would leave replies pointing at nothing and
+  // silently rewrite what the feed says happened; the country's history is that
+  // it was once full of bots. Their balances do not stay: that MMC was minted as
+  // "AI campaign treasury" for campaigns that can no longer happen, and leaving
+  // it in the supply would dilute the currency citizens earn against nobody.
+  if (state.version < 5) {
+    state.version = 5;
+    const decommissioned: string[] = [];
+
+    Object.values(state.citizens).forEach((c: any) => {
+      if (c?.isAI && typeof c.address === "string" && !isStateAccount(c.address)) {
+        decommissioned.push(c.address);
+      }
+    });
+
+    for (const address of decommissioned) {
+      delete state.citizens[address];
+      delete state.balances[address];
+      if (state.purchasedCosmetics) delete state.purchasedCosmetics[address];
+    }
+
+    // Clear them off the ballot and out of every open vote and jury box.
+    if (state.activeElection) {
+      state.activeElection.candidates = (state.activeElection.candidates ?? []).filter(
+        (a: string) => !decommissioned.includes(a)
+      );
+      for (const voter of Object.keys(state.activeElection.votes ?? {})) {
+        if (decommissioned.includes(voter)) delete state.activeElection.votes[voter];
+      }
+    }
+    const drop = (list: unknown) =>
+      Array.isArray(list) ? list.filter((a: string) => !decommissioned.includes(a)) : [];
+    (state.proposals ?? []).forEach((p: any) => {
+      p.yesVotes = drop(p.yesVotes);
+      p.noVotes = drop(p.noVotes);
+    });
+    (state.trials ?? []).forEach((t: any) => {
+      t.yesVotes = drop(t.yesVotes);
+      t.noVotes = drop(t.noVotes);
+    });
+
+    if (decommissioned.length > 0) {
+      console.info(
+        `[memeostan] migration v5: decommissioned ${decommissioned.length} AI citizen(s). ` +
+          `The civil service remains.`
+      );
+    }
   }
 
   if (typeof state.rev !== "number") state.rev = 0;

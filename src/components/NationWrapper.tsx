@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { startCampaignLoop } from "@/ai/engine";
+import { startGovernmentLoop } from "@/ai/engine";
 import { db, loadStateFromServer } from "@/lib/db";
 import { requestWorldTick, upgradeLegacyKeyIfNeeded } from "@/lib/actionClient";
 import { adoptLegacySession } from "@/lib/session";
@@ -17,7 +17,7 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     let tick = 0;
-    let campaign = 0;
+    let government = 0;
 
     try {
       // 1. `?reset=true` drops this browser's cached copy of the nation. It
@@ -40,8 +40,9 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
         .catch((err) => console.error("Boot sequence problem:", err))
         .finally(() => setReady(true));
 
-      // 3. AI chatter. The posts themselves are written server-side by /api/ai/*.
-      campaign = startCampaignLoop(() => {
+      // 3. The government taking its turns. Everything it does — citations,
+      //    verdicts, bulletins — is decided and written server-side by /api/ai/beat.
+      government = startGovernmentLoop(() => {
         window.dispatchEvent(new Event("nation-update"));
       }, 45000);
 
@@ -52,13 +53,13 @@ export default function NationWrapper({ children }: { children: React.ReactNode 
       }, TICK_MS);
 
       return () => {
-        window.clearInterval(campaign);
+        window.clearInterval(government);
         window.clearInterval(tick);
       };
     } catch (err: any) {
       console.error("Boot error:", err);
       setError(err.message || String(err));
-      window.clearInterval(campaign);
+      window.clearInterval(government);
       window.clearInterval(tick);
     }
   }, []);

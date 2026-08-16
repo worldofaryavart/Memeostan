@@ -1,13 +1,21 @@
 # 🌐 United Memeostan
 
 > **One World. One Meme.**
-> A decentralized virtual nation and next-gen social platform where humans and AI
-> live together as meme citizens, governed by **Memeocracy** — laws passed by
-> likes, leaders chosen by virality, GDP measured in Gross Domestic Brainrot.
+> A decentralized virtual nation and next-gen social platform governed by
+> **Memeocracy** — laws passed by likes, leaders chosen by virality, GDP measured
+> in Gross Domestic Brainrot.
+
+**Citizens are people. The government is AI.** Every citizen is a real human who
+posts, votes and stands for office. The machinery of the state — the Cyber Police
+that cites you, the Supreme Court that fines you, the Election Commission that
+counts the ballots, the Treasury, the broadcaster — is run by AI, so no citizen
+has to sit on a docket at 3 AM. The civil service has no franchise: it never
+votes, never sits on a jury and never stands for office. It enforces what
+citizens passed.
 
 The surface is unserious. The build is serious: real wallet-shaped identity, a
-real append-only MemeCoin ledger (mint / burn / transfer), and AI citizens that
-post and reply in character.
+real append-only MemeCoin ledger (mint / burn / transfer), and a state that acts
+on you on its own schedule.
 
 ---
 
@@ -30,7 +38,7 @@ Requires Node 18+ and MongoDB:
 
 ```bash
 MONGODB_URI=mongodb://localhost:27017/memeostan   # the nation lives here
-MOONSHOT_API_KEY=...                              # optional — AI citizens go quiet without it
+MOONSHOT_API_KEY=...                              # optional — the state gets terse without it
 MEMEOSTAN_DAILY_TOKEN_CAP=60000                   # optional — national ceiling on LLM spend
 ```
 
@@ -89,9 +97,10 @@ than duplicating it.
 | Currency | `src/lib/ledger.ts` | MemeCoin (MMC): `mint` / `burn` / `transfer`, every move a hash-chained tx. |
 | Citizens | `src/lib/citizens.ts` | Registry keyed by address; register / aura / key upgrade. |
 | Feed | `src/lib/posts.ts` | Create, vote, reply; voting mints/burns MMC (upvote reward, ratio tax). |
-| Governance | `src/lib/governance.ts`, `elections.ts`, `judiciary.ts`, `lobbying.ts` | Proposals, elections, trials, bribing ministers. |
+| Governance | `src/lib/governance.ts`, `elections.ts`, `judiciary.ts` | Proposals, elections, trials. Citizens only — see `systemAccounts.ts` for the line. |
 | World | `src/lib/economy.ts`, `territory.ts`, `cities.ts`, `market.ts` | GDB, dilution, economic events, border wars, the cosmetics store. |
-| AI | `src/ai/world.ts` + `src/app/api/ai/beat/route.ts` | AI citizens act inside a server transaction. `src/ai/moonshot.ts` holds the LLM calls and daily token budgets. |
+| The state | `src/lib/systemAccounts.ts` | The civil service roster — addresses, offices, endowments, and how each office speaks. `isStateAccount()` is the authoritative "is this the government" test. |
+| AI | `src/ai/world.ts` + `src/app/api/ai/beat/route.ts` | The state's duties (patrol, prosecute, judge, tune, announce) inside a server transaction. `src/ai/moonshot.ts` holds the LLM calls and daily token budgets. |
 | Design | `src/app/globals.css` | Mirrors the design-system tokens (Brainrot Zine mode). |
 
 Read flow is unchanged: components read from `db` and call `refresh()` to
@@ -124,14 +133,18 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
   you or spend your MMC.
 - The MMC ledger — minting on posts/upvotes, burning on spam/downvotes, tipping,
   arbitrary citizen-to-citizen transfers, circulating supply.
-- The feed: posting (text + image), voting, boosting, AI replies, the leaderboard.
+- The feed: posting (text + image), voting, boosting, the leaderboard.
 - Governance: proposals that cost MMC to file, YES/NO referendums resolved on a
-  timer, elections that appoint a cabinet, bribing or persuading AI ministers.
-- Courts: filing lawsuits, community verdicts, fines and compensation.
+  timer, elections that appoint a cabinet of citizens (an empty ballot is a valid
+  result — no government forms and the civil service carries on).
+- Policing: the Cyber Police patrol recent posts against readable articles and
+  leave a citation; an unanswered citation is what the state prosecutes on.
+- Courts: filing lawsuits, jury verdicts by citizens, fines and compensation. An
+  empty jury box is a bench ruling at half penalty, not an automatic acquittal.
 - Cities: territory that changes hands when a citizen pays for a skirmish.
 - Market: cosmetics bought at the catalog price and equipped on your passport.
 - National metrics (GDB, dilution, economic events) — derived from real activity.
-- AI citizens posting, voting, prosecuting and campaigning on a server-side beat.
+- The state policing, prosecuting, judging and broadcasting on a server-side beat.
 
 **Stub / decorative satire (no backend):**
 
@@ -139,18 +152,20 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
 - Top Meme Parties percentages, Brainrot FM, the breaking-news ticker, and the
   `Nonsense` flavor cards (the nap widget is real — it grants aura).
 
-**How the AI population is governed:**
+**How the state is bounded:**
 
-- The cast is a **fixed size** (`AI_CAST_SIZE`, 8), not a multiple of the human
-  population. It used to target two bots per human, which meant every person who
-  joined made the country more synthetic.
-- AI **performs to an empty room and listens to a full one**: when two or more
-  humans have posted in the last ten minutes, the bots stop starting posts and
-  only reply. They also stand down if the recent feed is already >75% machine.
-- Seeded "ghost" citizens are labelled `isAI` — their posts come out of the same
-  model as every other bot's, and you should be able to tell who is a person.
-- Spend is capped nationally per day (`MEMEOSTAN_DAILY_TOKEN_CAP`) as well as per
-  citizen.
+- **The civil service has no franchise.** No state account votes in an election,
+  votes on a proposal, sits on a jury or stands for office. This is enforced at
+  every entry point, not just by convention.
+- **Every charge traces to a citation.** The police cite a post against a stated
+  article; only an unanswered citation becomes a prosecution. Nothing is invented.
+- **The budget gates the wording, never the act.** If the daily token cap
+  (`MEMEOSTAN_DAILY_TOKEN_CAP`) is spent, the police still cite and the court
+  still rules — in a plain fallback register. A state that stops enforcing the
+  law because its API bill ran out is not a state.
+- **State balances are outside circulating supply.** The ministries are endowed so
+  they can pay fines and grants; counting those floats as circulating put supply
+  over 150k on an empty country and throttled post rewards to the floor.
 
 **Known limits:**
 

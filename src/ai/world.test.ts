@@ -1,17 +1,18 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { freshState, migrate, withState } from "@/lib/db";
-import { AI_CAST_SIZE, needsMoreAI, shouldStartCampaignPost } from "./world";
+import { patrol, population, prosecuteWarnedCitizens } from "./world";
+import { pendingVerdicts } from "@/lib/judiciary";
 import {
   CONSTITUTIONAL_COURT,
   CYBER_POLICE,
   ELECTION_COMMISSION,
   SUPREME_COURT,
 } from "@/lib/systemAccounts";
-import type { Citizen, NationState, Post } from "@/lib/types";
+import type { Citizen, NationState, Post, Trial } from "@/lib/types";
 
 let state: NationState;
 
-function citizen(address: string, isAI: boolean): Citizen {
+function citizen(address: string, isAI = false): Citizen {
   return {
     address,
     username: address.slice(0, 8),
@@ -23,7 +24,7 @@ function citizen(address: string, isAI: boolean): Citizen {
   };
 }
 
-function post(author: string, minutesAgo = 0): Post {
+function post(author: string, overrides: Partial<Post> = {}): Post {
   return {
     id: "post_" + Math.random().toString(36).slice(2, 9),
     author,
@@ -33,103 +34,164 @@ function post(author: string, minutesAgo = 0): Post {
     down: 0,
     voters: {},
     replies: [],
-    at: Date.now() - minutesAgo * 60_000,
+    at: Date.now(),
+    ...overrides,
   };
 }
 
-const HUMAN = "0xhuman0000000000000000000000000000aaa";
-const BOT = "0xai_bot000000000000000000000000000bbb";
+function citation(minutesAgo = 5) {
+  return { author: CYBER_POLICE, text: "⚠️ CITATION", at: Date.now() - minutesAgo * 60_000 };
+}
+
+const ALICE = "0xhuman0000000000000000000000000000aaa";
+const BOB = "0xhuman0000000000000000000000000000bbb";
 
 beforeEach(() => {
   state = migrate(freshState());
-  state.citizens[HUMAN] = citizen(HUMAN, false);
-  state.citizens[BOT] = citizen(BOT, true);
+  state.citizens[ALICE] = citizen(ALICE);
+  state.citizens[BOB] = citizen(BOB);
   state.citizens[SUPREME_COURT] = citizen(SUPREME_COURT, true);
+  state.citizens[CYBER_POLICE] = citizen(CYBER_POLICE, true);
 });
 
 const run = <T,>(fn: () => T): T => withState(state, fn);
 
-describe("shouldStartCampaignPost — perform to an empty room, listen to a full one", () => {
-  it("posts into a silent square", () => {
-    expect(run(shouldStartCampaignPost)).toBe(true);
+describe("population — the state is not the people", () => {
+  it("counts citizens only", () => {
+    state.citizens[ELECTION_COMMISSION] = citizen(ELECTION_COMMISSION, true);
+    state.citizens[CONSTITUTIONAL_COURT] = citizen(CONSTITUTIONAL_COURT, true);
+    expect(run(population).map((c) => c.address).sort()).toEqual([ALICE, BOB].sort());
   });
 
-  it("still posts when only one human has spoken recently", () => {
-    state.posts = [post(HUMAN, 1)];
-    expect(run(shouldStartCampaignPost)).toBe(true);
-  });
-
-  it("stands down once humans are actually talking", () => {
-    state.posts = [post(HUMAN, 1), post(HUMAN, 3)];
-    expect(run(shouldStartCampaignPost)).toBe(false);
-  });
-
-  it("ignores human posts that have gone stale", () => {
-    state.posts = [post(HUMAN, 30), post(HUMAN, 45)];
-    expect(run(shouldStartCampaignPost)).toBe(true);
-  });
-
-  it("does not count bots as company", () => {
-    state.posts = [post(BOT, 1), post(BOT, 2), post(BOT, 3)];
-    // Bot chatter is not a reason to stand down — but see the saturation guard.
-    state.posts = [post(BOT, 1), post(BOT, 2)];
-    expect(run(shouldStartCampaignPost)).toBe(true);
-  });
-
-  it("does not count the state's own paperwork as company", () => {
-    state.posts = [post(SUPREME_COURT, 1), post(SUPREME_COURT, 2)];
-    expect(run(shouldStartCampaignPost)).toBe(true);
-  });
-
-  it("stops when the recent feed has become almost entirely machine", () => {
-    state.posts = Array.from({ length: 10 }, (_, i) => post(BOT, i));
-    expect(run(shouldStartCampaignPost)).toBe(false);
-  });
-
-  it("keeps going when humans hold a decent share of the recent feed", () => {
-    state.posts = [
-      ...Array.from({ length: 5 }, (_, i) => post(BOT, i + 20)),
-      ...Array.from({ length: 4 }, (_, i) => post(HUMAN, i + 30)),
-    ];
-    expect(run(shouldStartCampaignPost)).toBe(true);
+  it("is empty on a fresh nation, however much government exists", () => {
+    state = migrate(freshState());
+    state.citizens[SUPREME_COURT] = citizen(SUPREME_COURT, true);
+    state.citizens[CYBER_POLICE] = citizen(CYBER_POLICE, true);
+    expect(run(population)).toHaveLength(0);
   });
 });
 
-describe("needsMoreAI — a fixed cast, not a multiple of the population", () => {
-  it("recruits while the cast is short", () => {
-    expect(run(needsMoreAI)).toBe(true);
+describe("patrol — the police need a rule they can point at", () => {
+  it("finds nothing in an empty square", () => {
+    expect(run(() => patrol())).toEqual([]);
   });
 
-  it("stops once the cast is full", () => {
-    for (let i = 0; i < AI_CAST_SIZE; i++) {
-      const address = `0xai_cast${i}00000000000000000000000000`;
-      state.citizens[address] = citizen(address, true);
-    }
-    expect(run(needsMoreAI)).toBe(false);
+  it("cites reasoning in a public space", () => {
+    state.posts = [post(ALICE, { text: "actually the GDB numbers are fine" })];
+    const [offence] = run(() => patrol());
+    expect(offence.charge).toBe("LOGIC USAGE IN A PUBLIC SPACE");
+    expect(offence.article).toBe("Article 1");
   });
 
-  it("does not count the courts and the commission as cast members", () => {
-    // One short of a full cast (BOT from beforeEach is the first)...
-    for (let i = 0; i < AI_CAST_SIZE - 2; i++) {
-      const address = `0xai_cast${i}00000000000000000000000000`;
-      state.citizens[address] = citizen(address, true);
-    }
-    // ...and a pile of state accounts, which must not fill the gap.
-    for (const address of [ELECTION_COMMISSION, CONSTITUTIONAL_COURT, CYBER_POLICE]) {
-      state.citizens[address] = citizen(address, true);
-    }
-    expect(run(needsMoreAI)).toBe(true);
+  it("cites flooding once three posts land inside the window", () => {
+    state.posts = [post(ALICE), post(ALICE), post(ALICE)];
+    const [offence] = run(() => patrol());
+    expect(offence.charge).toBe("SPAM FLOODING THE COMMONS");
   });
 
-  it("does not grow with the human population — the old rule did", () => {
-    for (let i = 0; i < AI_CAST_SIZE; i++) {
-      const address = `0xai_cast${i}00000000000000000000000000`;
-      state.citizens[address] = citizen(address, true);
-    }
-    for (let i = 0; i < 50; i++) {
-      const address = `0xhuman${i}0000000000000000000000000000`;
-      state.citizens[address] = citizen(address, false);
-    }
-    expect(run(needsMoreAI)).toBe(false);
+  it("leaves two posts alone", () => {
+    state.posts = [post(ALICE), post(ALICE)];
+    expect(run(() => patrol())).toEqual([]);
+  });
+
+  it("cites a ratioed post", () => {
+    state.posts = [post(ALICE, { up: 1, down: 4 })];
+    const [offence] = run(() => patrol());
+    expect(offence.charge).toBe("EXCESSIVE CRINGE DISTRIBUTION");
+  });
+
+  it("does not cite the same post twice", () => {
+    state.posts = [
+      post(ALICE, { text: "actually no", replies: [citation()] }),
+    ];
+    expect(run(() => patrol())).toEqual([]);
+  });
+
+  it("does not police the state's own posts", () => {
+    state.posts = [post(SUPREME_COURT, { text: "actually, the evidence is clear" })];
+    expect(run(() => patrol())).toEqual([]);
+  });
+
+  it("ignores posts that have aged out of the patrol window", () => {
+    state.posts = [
+      post(ALICE, { text: "actually no", at: Date.now() - 30 * 60_000 }),
+    ];
+    expect(run(() => patrol())).toEqual([]);
+  });
+});
+
+describe("prosecuteWarnedCitizens — a charge has to trace back to a warning", () => {
+  it("does nothing without a citation", () => {
+    state.posts = [post(ALICE)];
+    expect(run(prosecuteWarnedCitizens)).toBe(false);
+    expect(state.trials ?? []).toHaveLength(0);
+  });
+
+  it("charges a citizen whose citation went unanswered", () => {
+    state.posts = [post(ALICE, { replies: [citation()] })];
+    expect(run(prosecuteWarnedCitizens)).toBe(true);
+    expect(state.trials?.[0].defendant).toBe(ALICE);
+  });
+
+  it("gives the citizen a moment between the warning and the charge", () => {
+    state.posts = [post(ALICE, { replies: [citation(0)] })];
+    expect(run(prosecuteWarnedCitizens)).toBe(false);
+  });
+
+  it("runs one trial at a time", () => {
+    state.posts = [
+      post(ALICE, { replies: [citation()] }),
+      post(BOB, { replies: [citation()] }),
+    ];
+    run(prosecuteWarnedCitizens);
+    run(prosecuteWarnedCitizens);
+    expect(state.trials).toHaveLength(1);
+  });
+});
+
+describe("pendingVerdicts — an empty jury box is not an acquittal", () => {
+  function trial(overrides: Partial<Trial> = {}): Trial {
+    return {
+      id: "trial_1",
+      defendant: ALICE,
+      plaintiff: SUPREME_COURT,
+      charge: "IGNORING A LAWFUL CITATION",
+      description: "case",
+      status: "voting",
+      yesVotes: [],
+      noVotes: [],
+      verdict: null,
+      penalty: "",
+      at: Date.now() - 10 * 60_000,
+      endsAt: Date.now() - 60_000,
+      ...overrides,
+    };
+  }
+
+  it("ignores trials that are still running", () => {
+    state.trials = [trial({ endsAt: Date.now() + 60_000 })];
+    expect(run(pendingVerdicts)).toHaveLength(0);
+  });
+
+  it("convicts from the bench when nobody sat on the jury", () => {
+    // The old tally was `guilty = yesVotes > noVotes`, so 0 > 0 acquitted the
+    // defendant and paid them compensation. On an empty country that is a faucet.
+    state.trials = [trial()];
+    const [pending] = run(pendingVerdicts);
+    expect(pending.benchVerdict).toBe(true);
+    expect(pending.isGuilty).toBe(true);
+  });
+
+  it("defers to the jury the moment one citizen votes", () => {
+    state.trials = [trial({ noVotes: [BOB] })];
+    const [pending] = run(pendingVerdicts);
+    expect(pending.benchVerdict).toBe(false);
+    expect(pending.isGuilty).toBe(false);
+  });
+
+  it("follows a guilty jury", () => {
+    state.trials = [trial({ yesVotes: [BOB] })];
+    const [pending] = run(pendingVerdicts);
+    expect(pending.isGuilty).toBe(true);
   });
 });

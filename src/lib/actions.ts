@@ -30,7 +30,6 @@ import { elections } from "./elections";
 import { fileCharge, resolveTrials, voteOnTrial } from "./judiciary";
 import { launchSkirmish } from "./territory";
 import { buyCosmetic, equipCosmetic } from "./market";
-import { bribeMinister, persuadeMinister } from "./lobbying";
 import { recordGdbSnapshot, RATES } from "./economy";
 import { ALL_CITIES } from "./cities";
 import { FACTIONS } from "./citizens";
@@ -329,31 +328,12 @@ export const ACTIONS: Record<string, ActionDef> = {
     },
   },
 
-  // Lobbying an AI minister. The server decides whether the argument landed and
-  // casts the minister's vote — a browser can't just declare itself persuasive.
-  "minister.bribe": {
-    signed: true,
-    run({ actor, payload }) {
-      const result = bribeMinister(
-        actor,
-        id(payload, "proposalId"),
-        address(payload, "ministerAddress")
-      );
-      return { ok: result.ok, reason: result.reason, data: { newVote: result.newVote } };
-    },
-  },
-
-  "minister.persuade": {
-    signed: true,
-    run({ payload }) {
-      const result = persuadeMinister(
-        id(payload, "proposalId"),
-        address(payload, "ministerAddress"),
-        str(payload, "message", LIMITS.DESCRIPTION)
-      );
-      return { ok: result.ok, reason: result.reason, data: { newVote: result.newVote } };
-    },
-  },
+  // "minister.bribe" and "minister.persuade" lived here. They let a citizen flip
+  // an AI minister's vote on a referendum, for 50 MMC or the right magic word.
+  // There is nothing left to flip: the civil service does not vote on
+  // legislation, so there is no vote to buy. Bribery of the state, when it
+  // returns, has to buy an *outcome* — a charge dropped, a fine reduced — which
+  // is a different and much better mechanic than a purchased ballot.
 
   "election.vote": {
     signed: true,
