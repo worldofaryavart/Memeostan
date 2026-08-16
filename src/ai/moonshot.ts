@@ -123,9 +123,10 @@ async function complete(
 
 export function fallbackCitation(offence: Offence): string {
   return (
-    `⚠️ CYBER POLICE CITATION — ${offence.article}\n\n` +
+    `⚠️ CYBER POLICE CITATION — ${offence.article}: ${offence.law}\n\n` +
     `Offence: ${offence.charge}\n${offence.basis}\n\n` +
-    `This is a formal warning. A citation left unanswered is referred to the Supreme Court.`
+    `This is a formal warning. A citation left unanswered is referred to the Supreme Court. ` +
+    `If you believe this article should not exist, the remedy is a repeal bill, not a reply.`
   );
 }
 
@@ -138,21 +139,25 @@ export async function generateCitation(
 
 ${officeBlock("0xai_cyberpolice000000000000000000police")}
 
-You are issuing a formal citation to a citizen for a post. State the article and the
-offence, say plainly what they did, and warn them once. You are polite and completely
-immovable.
+You are issuing a formal citation to a citizen for a post. Name the article by
+number and title, say plainly what they did, and warn them once. You are polite and
+completely immovable.
+
+You did not write this article and you have no view on whether it is a good one —
+the citizens passed it and you enforce it. If the citizen dislikes it, their remedy
+is to table a repeal bill in the High Chambers, and you may say so.
 
 ${HOUSE_STYLE}`;
 
   const userPrompt = `Citizen: @${defendantName}
-Article: ${offence.article}
+Article: ${offence.article} — "${offence.law}"
 Offence: ${offence.charge}
 Basis: ${offence.basis}
 Their post: "${(post.text || "").slice(0, 300)}"
 
 Write the citation.`;
 
-  return complete(systemPrompt, userPrompt, 120);
+  return complete(systemPrompt, userPrompt, 130);
 }
 
 // ── the Supreme Court hands down a verdict ───────────────────────────────────

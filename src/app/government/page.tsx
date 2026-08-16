@@ -7,6 +7,8 @@ import { governance } from "@/lib/governance";
 import { elections } from "@/lib/elections";
 import { ledger } from "@/lib/ledger";
 import { act, newActionId } from "@/lib/actionClient";
+import { activeLaws, describeRule } from "@/lib/constitution";
+import type { LawRule, LawRuleType } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import Ticker from "@/components/Ticker";
 import FloatingStickers from "@/components/FloatingStickers";
@@ -26,10 +28,53 @@ export default function GovernmentPage() {
     (c) => !c.isAI && c.running && c.running !== "Candidate"
   );
 
+  // The constitution as it currently stands — what the Cyber Police actually
+  // enforce. Anything not in here is legal, however strongly anyone feels.
+  const constitution = activeLaws();
+  const repealedLaws = governance.allProposals().filter((p) => p.repealedBy);
+
   // Proposal form state
   const [propTitle, setPropTitle] = useState("");
   const [propDesc, setPropDesc] = useState("");
   const [propError, setPropError] = useState<string | null>(null);
+  const [ruleType, setRuleType] = useState<LawRuleType | "none">("none");
+  const [ruleWord, setRuleWord] = useState("");
+  const [ruleN, setRuleN] = useState(3);
+  const [repealTarget, setRepealTarget] = useState("");
+
+  /** Build the machine-checkable half of the bill, or nothing for a resolution. */
+  const buildRule = (): LawRule | undefined => {
+    switch (ruleType) {
+      case "ban_word":
+        return { type: "ban_word", words: [ruleWord.trim().toLowerCase()] };
+      case "require_image":
+        return { type: "require_image" };
+      case "post_limit":
+      case "min_length":
+      case "ratio_limit":
+        return { type: ruleType, n: ruleN };
+      case "repeal":
+        return { type: "repeal", target: repealTarget };
+      default:
+        return undefined;
+    }
+  };
+
+  const rulePreview = (): string => {
+    if (ruleType === "none") return "A resolution. It passes, it is recorded, and it binds nobody.";
+    if (ruleType === "ban_word" && ruleWord.trim().length < 3) {
+      return "A banned word needs at least 3 characters — shorter matches every post ever written.";
+    }
+    if (ruleType === "repeal" && !repealTarget) return "Pick the article to strike out.";
+    const rule = buildRule();
+    return rule ? describeRule(rule) : "";
+  };
+
+  const ruleIsValid =
+    ruleType === "none" ||
+    (ruleType === "ban_word" && ruleWord.trim().length >= 3) ||
+    (ruleType === "repeal" && Boolean(repealTarget)) ||
+    ["require_image", "post_limit", "min_length", "ratio_limit"].includes(ruleType);
 
   // Election countdown timer
   const [timeStr, setTimeStr] = useState("soon™");
@@ -61,16 +106,25 @@ export default function GovernmentPage() {
     
     const proposalId = newActionId("prop");
     const postId = newActionId("post");
+    const rule = buildRule();
     const res = act("proposal.create", {
       proposalId,
       postId,
       title: propTitle.trim(),
       description: propDesc.trim(),
+      // ban_word goes over the wire as a single `word`; the server owns the
+      // shape of what gets stored, and never trusts an array from a browser.
+      ...(rule
+        ? { rule: rule.type === "ban_word" ? { type: "ban_word", word: ruleWord.trim().toLowerCase() } : rule }
+        : {}),
     });
 
     if (res.ok) {
       setPropTitle("");
       setPropDesc("");
+      setRuleType("none");
+      setRuleWord("");
+      setRepealTarget("");
       setPropError(null);
       refresh();
     } else {
@@ -145,12 +199,80 @@ export default function GovernmentPage() {
                   <textarea
                     rows={3}
                     value={propDesc}
-                    placeholder="State your bill clearly. Faction affiliations will react automatically."
+                    placeholder="State your bill clearly. This is the reasoning citizens vote on."
                     maxLength={300}
                     onChange={(e) => setPropDesc(e.target.value)}
                     style={{ width: "100%", padding: 10, fontSize: 14, resize: "vertical" }}
                   />
                 </div>
+
+                {/* What the bill actually DOES. Free text alone would mean asking a
+                    model whether a post "feels illegal"; a rule is something the
+                    police can check and a citizen can predict. */}
+                <div style={{ border: "2.5px dashed var(--ink-soft)", borderRadius: 6, padding: 10 }}>
+                  <div className="marker" style={{ fontSize: 13, marginBottom: 6 }}>
+                    ⚖️ WHAT THIS BILL ENFORCES
+                  </div>
+
+                  <select
+                    value={ruleType}
+                    onChange={(e) => setRuleType(e.target.value as LawRuleType | "none")}
+                    style={{ width: "100%", padding: 8, fontSize: 13 }}
+                  >
+                    <option value="none">Nothing — a resolution of the assembly</option>
+                    <option value="ban_word">Ban a word from public posts</option>
+                    <option value="require_image">Require every post to carry a picture</option>
+                    <option value="post_limit">Limit posts per five minutes</option>
+                    <option value="min_length">Require a minimum post length</option>
+                    <option value="ratio_limit">Make heavily downvoted posts an offence</option>
+                    <option value="repeal">Repeal an existing article</option>
+                  </select>
+
+                  {ruleType === "ban_word" && (
+                    <input
+                      type="text"
+                      value={ruleWord}
+                      placeholder="the word to ban (3+ characters)"
+                      maxLength={40}
+                      onChange={(e) => setRuleWord(e.target.value)}
+                      style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8 }}
+                    />
+                  )}
+
+                  {(ruleType === "post_limit" || ruleType === "min_length" || ruleType === "ratio_limit") && (
+                    <input
+                      type="number"
+                      value={ruleN}
+                      min={1}
+                      max={ruleType === "min_length" ? 200 : 100}
+                      onChange={(e) => setRuleN(Math.max(1, Number(e.target.value) || 1))}
+                      style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8 }}
+                    />
+                  )}
+
+                  {ruleType === "repeal" && (
+                    <select
+                      value={repealTarget}
+                      onChange={(e) => setRepealTarget(e.target.value)}
+                      style={{ width: "100%", padding: 8, fontSize: 13, marginTop: 8 }}
+                    >
+                      <option value="">— pick an article —</option>
+                      {constitution.map((law) => (
+                        <option key={law.id} value={law.id}>
+                          Article {law.article} — {law.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <div
+                    className="hand"
+                    style={{ fontSize: 13, marginTop: 8, color: ruleIsValid ? "var(--ink)" : "var(--bad)" }}
+                  >
+                    {rulePreview()}
+                  </div>
+                </div>
+
                 {propError && (
                   <div className="sticker s-pink" style={{ alignSelf: "flex-start", padding: "4px 8px" }}>
                     ⚠️ {propError}
@@ -159,7 +281,7 @@ export default function GovernmentPage() {
                 <button
                   type="submit"
                   className="btn lime"
-                  disabled={!citizen || !propTitle.trim() || !propDesc.trim()}
+                  disabled={!citizen || !propTitle.trim() || !propDesc.trim() || !ruleIsValid}
                   style={{ alignSelf: "flex-end" }}
                 >
                   File Bill (-100 MMC) 🗳️
@@ -236,23 +358,59 @@ export default function GovernmentPage() {
 
             {/* 3. Passed Laws (The Constitution) */}
             <div className="paper p-pink taped tape-pink">
-              <span className="card-title">📜 CONSTITUTIONAL LAWS</span>
-              {enactedProposals.length === 0 ? (
-                <p className="hand" style={{ padding: "10px 0" }}>No laws have been passed yet. The country is currently in legal anarchy!</p>
+              <span className="card-title">📜 THE CONSTITUTION</span>
+              <p className="hand" style={{ fontSize: 13, color: "var(--ink-soft)", margin: "4px 0 10px" }}>
+                Every article the Cyber Police enforce, and nothing else. Anything
+                not listed here is legal, however strongly anyone feels about it.
+              </p>
+              {constitution.length === 0 ? (
+                <p className="hand" style={{ padding: "10px 0" }}>Every article has been repealed. Memeostan is in total legal anarchy.</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 10 }}>
-                  {enactedProposals.map((prop) => {
+                  {constitution.map((prop) => {
                     const creator = getCitizen(prop.creator);
+                    const founding = prop.enactedAt === 0;
                     return (
                       <div key={prop.id} style={{ borderLeft: "4px solid var(--good)", paddingLeft: 12, margin: "6px 0" }}>
-                        <div className="marker" style={{ fontSize: 16, color: "var(--purple-deep)" }}>{prop.title}</div>
+                        <div className="marker" style={{ fontSize: 16, color: "var(--purple-deep)" }}>
+                          Article {prop.article} — {prop.title}
+                        </div>
                         <div className="hand" style={{ fontSize: 14, color: "var(--ink)", marginTop: 4 }}>{prop.description}</div>
+                        {prop.rule && (
+                          <div
+                            className="mono"
+                            style={{
+                              fontSize: 12,
+                              marginTop: 6,
+                              padding: "4px 8px",
+                              background: "rgba(15, 11, 26, 0.06)",
+                              borderRadius: 4,
+                            }}
+                          >
+                            ⚖️ {describeRule(prop.rule)}
+                          </div>
+                        )}
                         <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 6 }}>
-                          Enacted by Referendum · Proposed by @{creator?.username || shortAddress(prop.creator)}
+                          {founding
+                            ? "Founding article · in force since the country was declared"
+                            : `Enacted by referendum · proposed by @${creator?.username || shortAddress(prop.creator)}`}
                         </div>
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {repealedLaws.length > 0 && (
+                <div style={{ marginTop: 16, borderTop: "2.5px dashed var(--ink-soft)", paddingTop: 10 }}>
+                  <div className="marker" style={{ fontSize: 13, marginBottom: 6 }}>🕊️ REPEALED</div>
+                  {repealedLaws.map((prop) => (
+                    <div key={prop.id} className="mono" style={{ fontSize: 12, opacity: 0.7 }}>
+                      <span style={{ textDecoration: "line-through" }}>
+                        Article {prop.article} — {prop.title}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

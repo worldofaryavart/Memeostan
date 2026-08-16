@@ -53,6 +53,27 @@ export interface EconomicEvent {
   resolved: boolean;
 }
 
+/**
+ * What a law actually *does*. A bill without one is a resolution: it passes, it
+ * is recorded, and it binds nobody. A bill with one becomes an article the Cyber
+ * Police can check a post against without asking anybody's opinion — see
+ * src/lib/constitution.ts for why that matters.
+ */
+export type LawRuleType =
+  | "ban_word"
+  | "require_image"
+  | "post_limit"
+  | "min_length"
+  | "ratio_limit"
+  | "repeal";
+
+export interface LawRule {
+  type: LawRuleType;
+  words?: string[]; // ban_word
+  n?: number; // post_limit, min_length, ratio_limit
+  target?: string; // repeal — the id of the article being struck out
+}
+
 export interface Proposal {
   id: string;
   creator: string; // wallet address
@@ -63,6 +84,12 @@ export interface Proposal {
   noVotes: string[]; // citizen addresses
   endsAt: number;
   at: number;
+
+  // Set on enactment, when the bill becomes part of the constitution.
+  rule?: LawRule;
+  article?: number; // its number in the constitution
+  enactedAt?: number; // enforcement starts here; never retroactive
+  repealedBy?: string; // the id of the bill that struck it out
 }
 
 export interface ActiveElection {

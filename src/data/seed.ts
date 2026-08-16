@@ -10,6 +10,7 @@
 
 import { db } from "@/lib/db";
 import { STATE_ORGANS } from "@/lib/systemAccounts";
+import { seedFoundingArticles } from "@/lib/constitution";
 import type { Citizen } from "@/lib/types";
 
 export function bootNation(): void {
@@ -38,4 +39,9 @@ export function bootNation(): void {
 
     if (!s.founded) s.founded = Date.now();
   });
+
+  // The three offences the state starts out enforcing. They live in the
+  // constitution as ordinary enacted bills rather than in code, which is what
+  // makes them repealable — the citizens can vote to legalise logic.
+  seedFoundingArticles();
 }

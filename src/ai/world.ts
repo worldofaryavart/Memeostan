@@ -15,6 +15,7 @@
 import { db } from "@/lib/db";
 import { addReply, createPost, getPost } from "@/lib/posts";
 import { checkAndFireEvents, tuneRatesAI, vibeOf } from "@/lib/economy";
+import { activeLaws, violationOf } from "@/lib/constitution";
 import {
   SUPREME_COURT_ADDRESS,
   fileCharge,
@@ -42,34 +43,24 @@ export interface Offence {
   postId: string;
   /** The article of the constitution the post is alleged to have broken. */
   article: string;
+  /** The article's title, so a citizen can find and repeal it. */
+  law: string;
   charge: string;
   /** Plain statement of what triggered it, handed to the LLM and to the court. */
   basis: string;
 }
 
-const SPAM_WINDOW_MS = 5 * 60 * 1000;
-const SPAM_THRESHOLD = 3;
-
-/**
- * Words that constitute Logic, which is banned in public spaces under Article 1.
- * A joke, but an enforceable one: the police need something they can actually
- * detect, and "did the citizen try to reason" is at least a rule you can read.
- */
-const LOGIC_MARKERS = [
-  "actually",
-  "technically",
-  "the data",
-  "statistically",
-  "in fact",
-  "evidence",
-  "objectively",
-  "scientifically",
-  "correlation",
-  "therefore",
-];
+const PATROL_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * What the Cyber Police found on patrol.
+ *
+ * The offences used to be three `if` statements in this file, which meant the
+ * rulebook the state enforced was one no vote could reach. Now every charge
+ * comes out of the constitution the citizens actually passed — including the
+ * three founding articles, which are seeded as ordinary enacted bills and can
+ * therefore be repealed. If the square legalises logic, the police stop citing
+ * it, on the next patrol, with no deploy.
  *
  * Only citizens are policed, only recent posts are in scope, and a post is only
  * ever cited once — the police get one bite, then it is the court's problem.
@@ -80,7 +71,7 @@ export function patrol(limit = 1): Offence[] {
   const found: Offence[] = [];
 
   const recent = state.posts.filter(
-    (p) => p.at >= now - SPAM_WINDOW_MS && !isStateAccount(p.author)
+    (p) => p.at >= now - PATROL_WINDOW_MS && !isStateAccount(p.author)
   );
 
   const alreadyCited = (post: Post) =>
@@ -90,38 +81,16 @@ export function patrol(limit = 1): Offence[] {
     if (found.length >= limit) break;
     if (alreadyCited(post)) continue;
 
-    const text = (post.text || "").toLowerCase();
+    const violation = violationOf(post);
+    if (!violation) continue;
 
-    const marker = LOGIC_MARKERS.find((word) => text.includes(word));
-    if (marker) {
-      found.push({
-        postId: post.id,
-        article: "Article 1",
-        charge: "LOGIC USAGE IN A PUBLIC SPACE",
-        basis: `The post contains the word "${marker}", which is reasoning. Public spaces are for vibes.`,
-      });
-      continue;
-    }
-
-    const byAuthor = recent.filter((p) => p.author === post.author).length;
-    if (byAuthor >= SPAM_THRESHOLD) {
-      found.push({
-        postId: post.id,
-        article: "Article 4",
-        charge: "SPAM FLOODING THE COMMONS",
-        basis: `The author has published ${byAuthor} posts in five minutes. This dilutes Gross Domestic Brainrot.`,
-      });
-      continue;
-    }
-
-    if (post.down >= 3 && post.down > post.up) {
-      found.push({
-        postId: post.id,
-        article: "Article 7",
-        charge: "EXCESSIVE CRINGE DISTRIBUTION",
-        basis: `The post stands at ${post.down} downvotes against ${post.up} upvotes. This is public vibe contamination.`,
-      });
-    }
+    found.push({
+      postId: post.id,
+      article: `Article ${violation.article}`,
+      law: violation.law.title,
+      charge: violation.charge,
+      basis: violation.basis,
+    });
   }
 
   return found;
@@ -146,6 +115,12 @@ const RETRIAL_COOLDOWN_MS = 5 * 60 * 1000;
  * including a 5% chance per beat of charging a citizen with "SUSPICION OF BEING
  * AN NPC" for no reason at all, which is funny exactly once and then is just a
  * random fine. Now every trial traces back to a citation someone can go and read.
+ *
+ * The post is re-tested against the constitution at this point rather than the
+ * citation being taken on trust. If the assembly repealed the article in the
+ * meantime, the conduct is no longer an offence and the citation is withdrawn.
+ * That is the visible payoff of repeal: pass a bill, and a prosecution that was
+ * already coming for you evaporates.
  */
 export function prosecuteWarnedCitizens(): boolean {
   const state = db.get();
@@ -178,12 +153,27 @@ export function prosecuteWarnedCitizens(): boolean {
     const citizen = state.citizens[defendant];
     if (!citizen) continue;
 
+    const stillUnlawful = violationOf(post);
+    if (!stillUnlawful) {
+      if (!post.replies.some((r) => r.text.startsWith("🕊️"))) {
+        addReply(
+          post.id,
+          CYBER_POLICE,
+          `🕊️ CITATION WITHDRAWN. The article this post was cited under is no longer in force. ` +
+            `No further action will be taken. Carry on, citizen.`
+        );
+        return true;
+      }
+      continue;
+    }
+
     fileCharge(
       SUPREME_COURT_ADDRESS,
       defendant,
       "IGNORING A LAWFUL CITATION",
-      `Citizen @${citizen.username} was cited by the Cyber Police and the citation stands unanswered.\n\n` +
-        `Citation: "${citation.text}"\n\nRef: ${post.id}`
+      `Citizen @${citizen.username} was cited under Article ${stillUnlawful.article} ` +
+        `("${stillUnlawful.law.title}") and the citation stands unanswered.\n\n` +
+        `${stillUnlawful.basis}\n\nCitation: "${citation.text}"\n\nRef: ${post.id}`
     );
     return true; // at most one prosecution per beat
   }

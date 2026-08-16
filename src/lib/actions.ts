@@ -34,6 +34,7 @@ import { recordGdbSnapshot, RATES } from "./economy";
 import { ALL_CITIES } from "./cities";
 import { FACTIONS } from "./citizens";
 import { isValidPublicKey, type PublicKeyJwk } from "./crypto";
+import type { LawRule } from "./types";
 
 // ── the wire format ──────────────────────────────────────────────────────────
 
@@ -177,6 +178,60 @@ function imageDataUrl(payload: Record<string, unknown>): string | null {
 
 const CITY_NAMES = ALL_CITIES.map((c) => c.name);
 
+const LAW_RULE_TYPES = [
+  "ban_word",
+  "require_image",
+  "post_limit",
+  "min_length",
+  "ratio_limit",
+  "repeal",
+] as const;
+
+/**
+ * The machine-checkable half of a bill, validated here because this is the
+ * security boundary and a law is the one thing in the nation that acts on
+ * everybody. A bill with no rule is legal — it passes as a resolution and binds
+ * nobody.
+ *
+ * Bounds are not decoration. `post_limit: 0` would criminalise posting at all,
+ * `min_length: 5000` the same by another route, and a banned word of "" or "a"
+ * would match every post ever written. A law has to be survivable, or one
+ * referendum ends the country.
+ */
+function lawRule(payload: Record<string, unknown>): LawRule | undefined {
+  const raw = payload.rule;
+  if (raw == null) return undefined;
+  if (typeof raw !== "object") throw new Invalid("rule must be an object");
+
+  const rule = raw as Record<string, unknown>;
+  const type = oneOf(rule, "type", LAW_RULE_TYPES);
+
+  switch (type) {
+    case "ban_word": {
+      const word = str(rule, "word", 40).toLowerCase();
+      if (word.length < 3) {
+        throw new Invalid("a banned word must be at least 3 characters — shorter matches everything");
+      }
+      return { type, words: [word] };
+    }
+
+    case "require_image":
+      return { type };
+
+    case "post_limit":
+      return { type, n: positiveInt(rule, "n", 50) };
+
+    case "min_length":
+      return { type, n: positiveInt(rule, "n", 200) };
+
+    case "ratio_limit":
+      return { type, n: positiveInt(rule, "n", 100) };
+
+    case "repeal":
+      return { type, target: id(rule, "target") };
+  }
+}
+
 // World-tick pacing. In memory, not in state — see the note on "world.tick".
 let lastWorldTickAt = 0;
 const GDB_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
@@ -314,7 +369,8 @@ export const ACTIONS: Record<string, ActionDef> = {
         actor,
         str(payload, "title", LIMITS.TITLE),
         str(payload, "description", LIMITS.DESCRIPTION),
-        { proposalId, postId }
+        { proposalId, postId },
+        lawRule(payload)
       );
       return { ok: result.ok, reason: result.reason, data: { proposalId, postId: result.postId } };
     },

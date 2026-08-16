@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { freshState, migrate, withState } from "@/lib/db";
 import { patrol, population, prosecuteWarnedCitizens } from "./world";
 import { pendingVerdicts } from "@/lib/judiciary";
+import { activeLaws, enact, seedFoundingArticles } from "@/lib/constitution";
 import {
   CONSTITUTIONAL_COURT,
   CYBER_POLICE,
@@ -43,6 +44,14 @@ function citation(minutesAgo = 5) {
   return { author: CYBER_POLICE, text: "⚠️ CITATION", at: Date.now() - minutesAgo * 60_000 };
 }
 
+/** A post that genuinely breaks Article 1, already cited. */
+function unlawful(author: string, citedMinutesAgo = 5): Post {
+  return post(author, {
+    text: "actually that is incorrect",
+    replies: [citation(citedMinutesAgo)],
+  });
+}
+
 const ALICE = "0xhuman0000000000000000000000000000aaa";
 const BOB = "0xhuman0000000000000000000000000000bbb";
 
@@ -52,6 +61,9 @@ beforeEach(() => {
   state.citizens[BOB] = citizen(BOB);
   state.citizens[SUPREME_COURT] = citizen(SUPREME_COURT, true);
   state.citizens[CYBER_POLICE] = citizen(CYBER_POLICE, true);
+  // The police enforce the constitution and nothing else, so there has to be
+  // one. Without this every patrol test finds nothing, which is correct.
+  withState(state, () => seedFoundingArticles());
 });
 
 const run = <T,>(fn: () => T): T => withState(state, fn);
@@ -79,18 +91,23 @@ describe("patrol — the police need a rule they can point at", () => {
   it("cites reasoning in a public space", () => {
     state.posts = [post(ALICE, { text: "actually the GDB numbers are fine" })];
     const [offence] = run(() => patrol());
-    expect(offence.charge).toBe("LOGIC USAGE IN A PUBLIC SPACE");
+    expect(offence.charge).toBe("USE OF A PROSCRIBED WORD");
     expect(offence.article).toBe("Article 1");
+    expect(offence.law).toBe("Logic is banned in public spaces");
   });
 
-  it("cites flooding once three posts land inside the window", () => {
-    state.posts = [post(ALICE), post(ALICE), post(ALICE)];
+  it("cites flooding once the author goes past the limit", () => {
+    // Article 2 permits three posts in five minutes, so the fourth is the
+    // offence. The hardcoded rule this replaced cited on the third, which
+    // contradicted the wording it was supposedly enforcing.
+    state.posts = [post(ALICE), post(ALICE), post(ALICE), post(ALICE)];
     const [offence] = run(() => patrol());
-    expect(offence.charge).toBe("SPAM FLOODING THE COMMONS");
+    expect(offence.charge).toBe("FLOODING THE COMMONS");
+    expect(offence.article).toBe("Article 2");
   });
 
-  it("leaves two posts alone", () => {
-    state.posts = [post(ALICE), post(ALICE)];
+  it("leaves an author inside the limit alone", () => {
+    state.posts = [post(ALICE), post(ALICE), post(ALICE)];
     expect(run(() => patrol())).toEqual([]);
   });
 
@@ -98,6 +115,7 @@ describe("patrol — the police need a rule they can point at", () => {
     state.posts = [post(ALICE, { up: 1, down: 4 })];
     const [offence] = run(() => patrol());
     expect(offence.charge).toBe("EXCESSIVE CRINGE DISTRIBUTION");
+    expect(offence.article).toBe("Article 3");
   });
 
   it("does not cite the same post twice", () => {
@@ -128,24 +146,45 @@ describe("prosecuteWarnedCitizens — a charge has to trace back to a warning", 
   });
 
   it("charges a citizen whose citation went unanswered", () => {
-    state.posts = [post(ALICE, { replies: [citation()] })];
+    state.posts = [unlawful(ALICE)];
     expect(run(prosecuteWarnedCitizens)).toBe(true);
     expect(state.trials?.[0].defendant).toBe(ALICE);
   });
 
+  it("names the article in the case file", () => {
+    state.posts = [unlawful(ALICE)];
+    run(prosecuteWarnedCitizens);
+    expect(state.trials?.[0].description).toContain("Article 1");
+  });
+
   it("gives the citizen a moment between the warning and the charge", () => {
-    state.posts = [post(ALICE, { replies: [citation(0)] })];
+    state.posts = [unlawful(ALICE, 0)];
     expect(run(prosecuteWarnedCitizens)).toBe(false);
   });
 
   it("runs one trial at a time", () => {
-    state.posts = [
-      post(ALICE, { replies: [citation()] }),
-      post(BOB, { replies: [citation()] }),
-    ];
+    state.posts = [unlawful(ALICE), unlawful(BOB)];
     run(prosecuteWarnedCitizens);
     run(prosecuteWarnedCitizens);
     expect(state.trials).toHaveLength(1);
+  });
+
+  it("withdraws the citation instead if the article has been repealed", () => {
+    // The payoff of repeal: a prosecution already coming for you evaporates.
+    state.posts = [unlawful(ALICE)];
+    const logic = run(activeLaws).find((l) => l.article === 1)!;
+    withState(state, () => {
+      state.proposals!.push({
+        id: "prop_repeal1", creator: BOB, title: "legalise logic", description: "enough",
+        status: "enacted", yesVotes: [], noVotes: [], endsAt: 0, at: Date.now(),
+        rule: { type: "repeal", target: logic.id },
+      });
+      enact(state.proposals!.find((p) => p.id === "prop_repeal1")!);
+    });
+
+    expect(run(prosecuteWarnedCitizens)).toBe(true);
+    expect(state.trials ?? []).toHaveLength(0);
+    expect(state.posts[0].replies.some((r) => r.text.startsWith("🕊️"))).toBe(true);
   });
 });
 

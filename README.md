@@ -97,7 +97,8 @@ than duplicating it.
 | Currency | `src/lib/ledger.ts` | MemeCoin (MMC): `mint` / `burn` / `transfer`, every move a hash-chained tx. |
 | Citizens | `src/lib/citizens.ts` | Registry keyed by address; register / aura / key upgrade. |
 | Feed | `src/lib/posts.ts` | Create, vote, reply; voting mints/burns MMC (upvote reward, ratio tax). |
-| Governance | `src/lib/governance.ts`, `elections.ts`, `judiciary.ts` | Proposals, elections, trials. Citizens only — see `systemAccounts.ts` for the line. |
+| Governance | `src/lib/governance.ts`, `elections.ts`, `judiciary.ts` | Bills, elections, trials. Citizens only — see `systemAccounts.ts` for the line. |
+| The law | `src/lib/constitution.ts` | Enacted bills become machine-checkable articles. `violationOf(post)` is the only thing the police consult. |
 | World | `src/lib/economy.ts`, `territory.ts`, `cities.ts`, `market.ts` | GDB, dilution, economic events, border wars, the cosmetics store. |
 | The state | `src/lib/systemAccounts.ts` | The civil service roster — addresses, offices, endowments, and how each office speaks. `isStateAccount()` is the authoritative "is this the government" test. |
 | AI | `src/ai/world.ts` + `src/app/api/ai/beat/route.ts` | The state's duties (patrol, prosecute, judge, tune, announce) inside a server transaction. `src/ai/moonshot.ts` holds the LLM calls and daily token budgets. |
@@ -137,7 +138,11 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
 - Governance: proposals that cost MMC to file, YES/NO referendums resolved on a
   timer, elections that appoint a cabinet of citizens (an empty ballot is a valid
   result — no government forms and the civil service carries on).
-- Policing: the Cyber Police patrol recent posts against readable articles and
+- **Legislation that binds the state.** A bill carries a rule the police can
+  check — ban a word, require a picture, cap posts per five minutes, set a
+  minimum length, make a ratio an offence, or repeal an existing article. Pass
+  one and the Cyber Police enforce it on the next patrol, with no deploy.
+- Policing: the Cyber Police patrol recent posts against the constitution and
   leave a citation; an unanswered citation is what the state prosecutes on.
 - Courts: filing lawsuits, jury verdicts by citizens, fines and compensation. An
   empty jury box is a bench ruling at half penalty, not an automatic acquittal.
@@ -151,6 +156,27 @@ hash-chained, so the chain swap is `serverState.ts` (where state is committed) a
 - The "MEMECOIN PRICE 📈" panel — obvious joke, **not** a tradeable price.
 - Top Meme Parties percentages, Brainrot FM, the breaking-news ticker, and the
   `Nonsense` flavor cards (the nap widget is real — it grants aura).
+
+**How the law works:**
+
+- **A law is a rule, not a mood.** Free text would mean asking a model whether a
+  post "feels illegal" — unfalsifiable, unpredictable, impossible to argue with
+  in court. A citizen must be able to read the constitution and know, before
+  they post, whether they are breaking it. A bill with no rule still passes; it
+  is a resolution and binds nobody.
+- **The three founding articles are seeded as ordinary enacted bills**, not as
+  code. Which means they are repealable. The citizens can legalise logic.
+- **Enforcement is never retroactive.** A post published before an article was
+  enacted cannot be cited under it — otherwise passing a law would criminalise
+  the entire back catalogue at once.
+- **Repeal reaches a prosecution already in flight.** The post is re-tested
+  against the constitution when the charge is filed, so striking out an article
+  withdraws the citation instead of going to trial.
+- **Article numbers are never reused.** A repealed article is struck out, not
+  vacated; a citation for "Article 1" has to mean one thing forever.
+- Rule parameters are bounded server-side. `post_limit: 0` would criminalise
+  posting, a two-letter banned word would match every post ever written — one
+  referendum should not be able to end the country.
 
 **How the state is bounded:**
 

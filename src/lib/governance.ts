@@ -5,7 +5,8 @@ import { ledger } from "./ledger";
 import { adjustAura, getCitizen } from "./citizens";
 import { createSystemPost } from "./systemPosts";
 import { CONSTITUTIONAL_COURT, isStateAccount } from "./systemAccounts";
-import type { Proposal } from "./types";
+import { describeRule, enact } from "./constitution";
+import type { LawRule, Proposal } from "./types";
 
 const PROPOSAL_COST = 100; // MMC burn cost to file a proposal (spam tax)
 const PROPOSAL_DURATION = 3 * 60 * 1000; // 3 minutes for quick resolution in demo
@@ -25,10 +26,24 @@ export const governance = {
     description: string,
     // Caller-supplied so the client's optimistic copy and the server's committed
     // copy share ids. See the note in posts.ts.
-    ids: { proposalId?: string; postId?: string } = {}
+    ids: { proposalId?: string; postId?: string } = {},
+    rule?: LawRule
   ): { ok: boolean; reason?: string; proposal?: Proposal; postId?: string } {
     const citizen = getCitizen(creator);
     if (!citizen) return { ok: false, reason: "Citizen not registered" };
+
+    // Check the repeal target now rather than on enactment, so a citizen doesn't
+    // burn 100 MMC and three minutes of the assembly's time on a bill aimed at
+    // an article that was never in force.
+    if (rule?.type === "repeal") {
+      const target = (db.get().proposals ?? []).find((p) => p.id === rule.target);
+      if (!target || target.status !== "enacted" || !target.rule) {
+        return { ok: false, reason: "There is no such article to repeal." };
+      }
+      if (target.repealedBy) {
+        return { ok: false, reason: `Article ${target.article} has already been repealed.` };
+      }
+    }
 
     const balance = ledger.balanceOf(creator);
     if (balance < PROPOSAL_COST) {
@@ -52,6 +67,7 @@ export const governance = {
       noVotes: [],
       endsAt: Date.now() + PROPOSAL_DURATION,
       at: Date.now(),
+      rule,
     };
 
     db.update((s) => {
@@ -60,10 +76,14 @@ export const governance = {
       s.proposals.unshift(proposal);
     });
 
+    const effect = rule
+      ? `If carried: ${describeRule(rule)}`
+      : "A resolution of the assembly. It creates no enforceable duty.";
+
     // Post referendum alert to the feed
     const postId = createSystemPost(
       CONSTITUTIONAL_COURT,
-      `📜 BILL TABLED: @${citizen.username} has proposed "${title}".\n\n"${description}"\n\nThe assembly is open. Vote YES or NO in the High Chambers. 🗳️`,
+      `📜 BILL TABLED: @${citizen.username} has proposed "${title}".\n\n"${description}"\n\n${effect}\n\nThe assembly is open. Vote YES or NO in the High Chambers. 🗳️`,
       ids.postId
     );
 
@@ -137,8 +157,14 @@ export const governance = {
           // Quorum is met if at least 1 person voted (local simulation context)
           const quorumMet = totalVotes >= 1;
 
+          let effect = "";
+
           if (quorumMet && yesWeight > noWeight) {
             prop.status = "enacted";
+            // The bill becomes part of the constitution here. Before this, a
+            // passed referendum awarded MMC and changed nothing — citizens
+            // legislated into a void while the police enforced a hardcoded list.
+            effect = enact(prop);
             // Reward creator
             const creator = s.citizens[prop.creator];
             if (creator) {
@@ -178,8 +204,8 @@ export const governance = {
             author: CONSTITUTIONAL_COURT,
             text: passed
               ? `📜 ENACTED: "${prop.title}"\n\n` +
-                `Carried ${prop.yesVotes.length} to ${prop.noVotes.length}. The bill is entered into the constitution ` +
-                `and takes effect immediately.\n\nProposer ${creatorLabel} is awarded 200 MMC and 50 Aura.`
+                `Carried ${prop.yesVotes.length} to ${prop.noVotes.length}.\n\n${effect}\n\n` +
+                `Proposer ${creatorLabel} is awarded 200 MMC and 50 Aura.`
               : `📜 DEFEATED: "${prop.title}"\n\n` +
                 `Failed ${prop.yesVotes.length} to ${prop.noVotes.length}. The bill does not enter the constitution.`,
             image: null,
