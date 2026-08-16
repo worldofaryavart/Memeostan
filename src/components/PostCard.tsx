@@ -6,6 +6,7 @@ import { act } from "@/lib/actionClient";
 import { ledger } from "@/lib/ledger";
 import { RATES, vibeOf } from "@/lib/economy";
 import { isStateAccount } from "@/lib/systemAccounts";
+import { hasNotice } from "@/lib/citations";
 import type { Citizen, Post } from "@/lib/types";
 
 function timeAgo(at: number): string {
@@ -74,9 +75,35 @@ export default function PostCard({ post, refresh }: { post: Post; refresh: () =>
   const myVote = viewer ? post.voters[viewer.address] : undefined;
   const vibe = vibeOf(post);
   const [tipped, setTipped] = useState(false);
+  const [shareLabel, setShareLabel] = useState("📢 Share this notice");
 
   const kind = kindOf(post, author, viewer?.address);
   const label = KIND_LABEL[kind];
+  const noticed = hasNotice(post);
+
+  /**
+   * Hand the citizen a link to their own citation.
+   *
+   * Native share where it exists (that is the phone case, and phones are where
+   * this gets screenshotted), clipboard otherwise. Never a bare window.open —
+   * the point is to get the URL somewhere the citizen can paste it.
+   */
+  const share = async () => {
+    const url = `${window.location.origin}/citation/${post.id}`;
+    const title = "Official notice — United Memeostan";
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareLabel("✓ link copied");
+      window.setTimeout(() => setShareLabel("📢 Share this notice"), 2500);
+    } catch {
+      // A cancelled share sheet lands here too, so say nothing dramatic.
+      setShareLabel("📢 Share this notice");
+    }
+  };
 
   const cast = (dir: "up" | "down") => {
     if (!viewer) return;
@@ -146,6 +173,20 @@ export default function PostCard({ post, refresh }: { post: Post; refresh: () =>
           </button>
         )}
       </div>
+
+      {/* The state has acted on this post, so there is something worth showing
+          someone outside the country. This is the only growth loop Memeostan
+          has: a citation is far more interesting to a stranger than an invite. */}
+      {noticed && (
+        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="btn sm yellow" onClick={share} style={{ fontSize: 12 }}>
+            {shareLabel}
+          </button>
+          <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>
+            official notice — shareable
+          </span>
+        </div>
+      )}
 
       {post.replies.length > 0 && (
         <div style={{ marginTop: 10, paddingTop: 8, borderTop: "var(--b-dashed)", display: "flex", flexDirection: "column", gap: 7 }}>
