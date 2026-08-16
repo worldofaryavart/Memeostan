@@ -11,7 +11,8 @@
     "test": "vitest run",
     "nation:reset": "node scripts/reset-nation.mjs",
     "probe:enforcement": "node scripts/probe-enforcement.mjs",
-    "probe:legislation": "node scripts/probe-legislation.mjs"
+    "probe:legislation": "node scripts/probe-legislation.mjs",
+    "audit:coldstart": "node scripts/audit-coldstart.mjs"
   },
   "dependencies": {
     "mongodb": "^7.2.0",
